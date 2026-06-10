@@ -3,6 +3,7 @@ import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firesto
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faGift, faCircleCheck, faUtensils } from '@fortawesome/free-solid-svg-icons'
 import { db } from '../firebase/config.jsx'
+import { getOfferProductIds } from '../utils/offerUtils.js'
 
 function effectivePrice(p) {
   return p.onSale && p.salePrice && p.salePrice < p.price ? p.salePrice : p.price
@@ -24,12 +25,14 @@ export default function OfferPickerModal({ offer, onConfirm, onCancel }) {
     async function load() {
       setLoading(true)
       try {
-        if (offer.productId) {
-          const snap = await getDoc(doc(db, 'products', offer.productId))
-          if (snap.exists()) {
-            const d = snap.data()
-            if (d.available !== false) setProducts([{ id: snap.id, ...d }])
-          }
+        const offerIds = getOfferProductIds(offer)
+        if (offerIds.length) {
+          const snaps = await Promise.all(offerIds.map(id => getDoc(doc(db, 'products', id))))
+          setProducts(
+            snaps
+              .filter(s => s.exists() && s.data().available !== false)
+              .map(s => ({ id: s.id, ...s.data() }))
+          )
         } else {
           const snap = await getDocs(query(collection(db, 'products'), where('available', '==', true)))
           setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() })))
@@ -38,8 +41,8 @@ export default function OfferPickerModal({ offer, onConfirm, onCancel }) {
       setLoading(false)
     }
     load()
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  }, [offer.id, offer.productId])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offer.id])
 
   const totalSelected = Object.values(quantities).reduce((s, v) => s + v, 0)
   const remaining  = required - totalSelected

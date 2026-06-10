@@ -280,7 +280,7 @@ export default function AdminProducts() {
                     </td>
                     <td>
                       {p.onSale && p.salePrice ? (
-                        <span style={{ background: '#e53935', color: 'white', fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 50 }}>-{discountPct(p)}% OFF</span>
+                        <span style={{ display: 'inline-block', background: '#e53935', color: 'white', fontSize: 11, fontWeight: 700, lineHeight: 1.4, padding: '3px 11px', borderRadius: 50, whiteSpace: 'nowrap', verticalAlign: 'middle' }}>-{discountPct(p)}% OFF</span>
                       ) : (
                         <span style={{ color: 'var(--text-light)', fontSize: 12 }}>—</span>
                       )}

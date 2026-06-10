@@ -7,13 +7,25 @@
  * @param {number}      baseDeliveryFee
  * @returns {{ discountAmount: number, finalDeliveryFee: number, isValid: boolean }}
  */
+/**
+ * Normalises an offer's linked products into an array of product ids.
+ * Supports the current `productIds` array and the legacy single `productId`.
+ * An empty array means the offer applies to all products.
+ */
+export function getOfferProductIds(offer) {
+  if (offer?.productIds?.length) return offer.productIds
+  if (offer?.productId) return [offer.productId]
+  return []
+}
+
 export function computeOfferResult(offer, cartItems, baseDeliveryFee) {
   if (!offer || cartItems.length === 0) {
     return { discountAmount: 0, finalDeliveryFee: baseDeliveryFee, isValid: false }
   }
 
-  const qualifying = offer.productId
-    ? cartItems.filter(i => i.id === offer.productId)
+  const offerIds = getOfferProductIds(offer)
+  const qualifying = offerIds.length
+    ? cartItems.filter(i => offerIds.includes(i.id))
     : cartItems
 
   if (offer.type === 'free_delivery') {
@@ -55,8 +67,9 @@ export function computeOfferResult(offer, cartItems, baseDeliveryFee) {
 export function getOfferDisplayUnits(offer, cartItems) {
   if (!offer || (offer.type !== 'buy1get1' && offer.type !== 'buy2get1')) return []
 
-  const qualifying = offer.productId
-    ? cartItems.filter(i => i.id === offer.productId)
+  const offerIds = getOfferProductIds(offer)
+  const qualifying = offerIds.length
+    ? cartItems.filter(i => offerIds.includes(i.id))
     : cartItems
 
   return qualifying

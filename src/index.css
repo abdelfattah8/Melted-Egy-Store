@@ -114,6 +114,8 @@ input.error, select.error, textarea.error { border-color: #e53935; box-shadow: 0
 .hero-drip { color: var(--pink); display: block; font-size: 0.38em; font-style: normal; font-family: 'Poppins', sans-serif; font-weight: 300; letter-spacing: 5px; text-transform: uppercase; margin-bottom: 24px; animation: fadeInUp 0.8s ease 0.2s both; }
 .hero p { font-size: 17px; color: rgba(255,255,255,0.75); margin-bottom: 44px; line-height: 1.9; animation: fadeInUp 0.8s ease 0.3s both; }
 .hero-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; animation: fadeInUp 0.8s ease 0.4s both; margin-bottom: -13px; }
+/* Standalone slogan overlay — desktop uses the logo baked into the banner image, so it stays hidden here. */
+.hero-slogan { display: none; }
 .hero-btn-main { background: var(--pink); color: var(--brown); padding: 17px 44px; border-radius: 50px; font-size: 15px; font-weight: 700; cursor: pointer; transition: var(--transition); box-shadow: 0 8px 28px rgba(246,205,208,0.32); font-family: 'Poppins', sans-serif; border: none; }
 .hero-btn-main:hover { transform: translateY(-3px); box-shadow: 0 14px 40px rgba(246,205,208,0.45); }
 .hero-btn-outline { background: transparent; color: white; border: 2px solid rgba(255,255,255,0.4); padding: 17px 44px; border-radius: 50px; font-size: 15px; font-weight: 500; cursor: pointer; transition: var(--transition); font-family: 'Poppins', sans-serif; }
@@ -327,7 +329,32 @@ input.error, select.error, textarea.error { border-color: #e53935; box-shadow: 0
 @media (max-width: 768px) {
   .auth-card { padding: 36px 24px; }
   .form-row { grid-template-columns: 1fr; }
-  .hero-buttons { flex-direction: column; align-items: center; }
+  /* The wide banner has the "Melted" logo baked in at its centre. On a tall, narrow phone a
+     centred cover-crop would clip that logo, so instead the banner fills the whole section
+     edge-to-edge (cover, no bands) shifted to a clean chocolate area on the left — pushing the
+     baked-in logo off-frame — and we overlay the standalone slogan (.hero-slogan), which scales
+     with clamp() so it never clips. !important beats the inline background-size/position.
+     Desktop is untouched (this is inside the max-width:768px query). */
+  .hero {
+    min-height: 100vh;
+    min-height: 100svh;
+    background-size: cover !important;
+    background-position: left center !important;
+    padding: 34px 6% 46px;
+  }
+  .hero-slogan {
+    display: block;
+    position: relative;
+    z-index: 1;
+    width: clamp(240px, 80vw, 360px);
+    height: auto;
+    margin: 0 auto;
+    filter: drop-shadow(0 6px 22px rgba(0,0,0,0.45));
+    animation: fadeInUp 0.8s ease 0.15s both;
+  }
+  .hero-buttons { flex-direction: column; align-items: center; gap: 12px; width: 100%; max-width: 320px; margin-left: auto; margin-right: auto; }
+  .hero-btn-main, .hero-btn-outline { width: 100%; padding: 15px 24px; }
+  .hero-badge { font-size: 11px; padding: 6px 16px; letter-spacing: 1.5px; margin-bottom: 0; }
   .admin-layout { flex-direction: column; }
   .admin-sidebar { width: 100%; }
   .admin-content { padding: 28px 18px; }

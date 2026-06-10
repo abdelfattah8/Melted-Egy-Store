@@ -7,7 +7,9 @@
       "Bash(npm install *)",
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\DELL\\\\Desktop\\\\Melted Egy Store\\\\sweetbites\\\\src\" -Recurse -File | ForEach-Object { $_.FullName.Replace\\(\"C:\\\\Users\\\\DELL\\\\Desktop\\\\Melted Egy Store\\\\sweetbites\\\\src\\\\\", \"\"\\) })",
       "Bash(firebase *)",
-      "PowerShell(Get-Command *)"
+      "PowerShell(Get-Command *)",
+      "Bash(python -c \"from PIL import Image; im=Image.open\\('choco-banner.jpg'\\); print\\('choco-banner.jpg', im.size\\)\")",
+      "Bash(node -e \"const s=require\\('fs'\\).statSync\\('choco-banner.jpg'\\); console.log\\('no PIL'\\)\")"
     ]
   }
 }

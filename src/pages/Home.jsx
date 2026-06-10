@@ -11,6 +11,7 @@ import choco2 from '../assets/brand/download (2).png'
 import catBrownies from '../assets/brand/brownies-home.jpeg'
 // import catBrownies from '../assets/brand/cat-brownies.jpg'
 import chocoBanner from '../assets/brand/choco-banner.jpg'
+import meltedSlogan from '../assets/brand/melted-slogan.png'
 import packaging1 from '../assets/brand/packaging-1.jpg'
 import packaging2 from '../assets/brand/packaging-2.jpg'
 import { collection, getDocs, query, where, limit } from 'firebase/firestore'
@@ -188,6 +189,9 @@ export default function Home() {
         <div style={{ position: 'relative', zIndex: 1, width: '100%', textAlign: 'center', animation: 'fadeInUp 0.8s ease both' }}>
           <div className="hero-badge">✦ Handcrafted with love in Egypt</div>
         </div>
+
+        {/* Slogan overlay — shown on mobile only; desktop uses the logo baked into the banner */}
+        <img src={meltedSlogan} alt="Melted — Made to melt hearts" className="hero-slogan" />
 
         {/* Subtitle + buttons — bottom edge, over the dark gradient */}
         <div style={{ position: 'relative', zIndex: 1, width: '100%', textAlign: 'center', animation: 'fadeInUp 0.8s ease 0.3s both' }}>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { collection, serverTimestamp, doc, getDoc, updateDoc, runTransaction, query, where, getDocs, arrayUnion } from 'firebase/firestore'
+import { collection, serverTimestamp, doc, getDoc, runTransaction, query, where, getDocs, arrayUnion } from 'firebase/firestore'
 import { computeOfferResult, getOfferDisplayUnits } from '../utils/offerUtils'
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
@@ -166,6 +166,27 @@ export default function Checkout() {
     const newOrderRef = doc(collection(db, 'orders'))
     let stockErrors = []
 
+    // Upload the payment proof BEFORE creating the order. The order id is generated
+    // client-side above, so we can write to deposits/{orderId} up front. This avoids a
+    // post-creation updateDoc on the order (Firestore rules only allow admins to update
+    // orders, so that write was being denied — which is what surfaced the generic error
+    // even though the order had already been created). Uploading first also means a failed
+    // upload never leaves a silent, receipt-less order behind.
+    let depositImageUrl = null
+    if ((needsDeposit || needsTransferUpload) && depositFile) {
+      try {
+        const storageRef = ref(storage, `deposits/${newOrderRef.id}`)
+        const task = uploadBytesResumable(storageRef, depositFile)
+        await new Promise((res, rej) => task.on('state_changed', null, rej, res))
+        depositImageUrl = await getDownloadURL(task.snapshot.ref)
+      } catch (err) {
+        console.error('Payment proof upload failed:', err)
+        toast.error('Couldn’t upload your payment receipt — please check your connection and try again.', { duration: 5000 })
+        setLoading(false)
+        return
+      }
+    }
+
     try {
       await runTransaction(db, async (txn) => {
         stockErrors = []
@@ -235,7 +256,7 @@ export default function Checkout() {
           appliedOffer: (appliedOffer && !appliedPromo) ? { id: appliedOffer.id, title: appliedOffer.title, type: appliedOffer.type, discountAmount: verifiedOfferDiscount } : null,
           appliedPromo: appliedPromo ? { id: appliedPromo.id, code: appliedPromo.code, discountPercent: appliedPromo.discountPercent, discountAmount: verifiedPromoDiscount } : null,
           discountAmount: verifiedEffectiveDiscount, paymentMethod, requiresDeposit: needsDeposit, depositAmount: verifiedDeposit,
-          depositStatus: (needsDeposit || needsTransferUpload) ? 'submitted' : 'not_required', depositImageUrl: null,
+          depositStatus: (needsDeposit || needsTransferUpload) ? 'submitted' : 'not_required', depositImageUrl,
           orderNote: orderNote.trim() || null, deliveryDate: deliveryDate || null, status: getOrderStatus(), createdAt: serverTimestamp(),
         }
 
@@ -251,14 +272,6 @@ export default function Checkout() {
           }
         }
       })
-
-      if ((needsDeposit || needsTransferUpload) && depositFile) {
-        const storageRef = ref(storage, `deposits/${newOrderRef.id}`)
-        const task = uploadBytesResumable(storageRef, depositFile)
-        await new Promise((res, rej) => task.on('state_changed', null, rej, res))
-        const url = await getDownloadURL(task.snapshot.ref)
-        await updateDoc(doc(db, 'orders', newOrderRef.id), { depositImageUrl: url })
-      }
 
       clearCart(); removeOffer(); removePromo()
       toast.success('Order placed successfully! 🎉')

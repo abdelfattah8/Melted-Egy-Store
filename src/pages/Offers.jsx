@@ -4,6 +4,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faGift, faCartShopping, faCircleCheck, faTruck, faWandMagicSparkles, faCookieBite, faClock, faBagShopping } from '@fortawesome/free-solid-svg-icons'
 import { db } from '../firebase/config.jsx'
+import { getOfferProductIds } from '../utils/offerUtils.js'
 import { useCart } from '../context/CartContext.jsx'
 import OfferPickerModal from '../components/OfferPickerModal.jsx'
 import SEO from '../components/SEO.jsx'
@@ -149,7 +150,7 @@ export default function Offers() {
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 24 }}>
                 {offers.map(o => {
-                  const prod = o.productId ? getProduct(o.productId) : null
+                  const linkedProducts = getOfferProductIds(o).map(getProduct).filter(Boolean)
                   const meta = TYPE_LABEL[o.type] || TYPE_LABEL.custom
                   return (
                     <div key={o.id}
@@ -178,20 +179,24 @@ export default function Offers() {
 
                         {o.description && <p style={{ fontSize: 14, color: 'var(--text-light)', marginBottom: 16, lineHeight: 1.7 }}>{o.description}</p>}
 
-                        {prod && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'var(--cream)', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
-                            {prod.imageUrl
-                              ? <img src={prod.imageUrl} alt={prod.name} style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 6 }} />
-                              : <FontAwesomeIcon icon={faCookieBite} style={{ fontSize: 20, color: 'var(--brown)' }} />
-                            }
-                            <div>
-                              <div style={{ fontWeight: 600, color: 'var(--brown)' }}>{prod.name}</div>
-                              <div style={{ color: 'var(--text-light)', fontSize: 12 }}>{prod.price} EGP</div>
-                            </div>
+                        {linkedProducts.length > 0 && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                            {linkedProducts.map(prod => (
+                              <div key={prod.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'var(--cream)', borderRadius: 8, fontSize: 13 }}>
+                                {prod.imageUrl
+                                  ? <img src={prod.imageUrl} alt={prod.name} style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 6 }} />
+                                  : <FontAwesomeIcon icon={faCookieBite} style={{ fontSize: 20, color: 'var(--brown)' }} />
+                                }
+                                <div>
+                                  <div style={{ fontWeight: 600, color: 'var(--brown)' }}>{prod.name}</div>
+                                  <div style={{ color: 'var(--text-light)', fontSize: 12 }}>{prod.price} EGP</div>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         )}
 
-                        {!prod && (
+                        {linkedProducts.length === 0 && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-light)', marginBottom: 16 }}>
                             <FontAwesomeIcon icon={faWandMagicSparkles} style={{ fontSize: 14, color: 'var(--brown-light)' }} /> Applies to all products
                           </div>
