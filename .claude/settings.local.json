@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem *)",
+      "Bash(npm run *)",
+      "Bash(powershell *)",
+      "Bash(npm install *)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\DELL\\\\Desktop\\\\Melted Egy Store\\\\sweetbites\\\\src\" -Recurse -File | ForEach-Object { $_.FullName.Replace\\(\"C:\\\\Users\\\\DELL\\\\Desktop\\\\Melted Egy Store\\\\sweetbites\\\\src\\\\\", \"\"\\) })",
+      "Bash(firebase *)",
+      "PowerShell(Get-Command *)"
+    ]
+  }
+}
