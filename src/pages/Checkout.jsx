@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { collection, serverTimestamp, doc, getDoc, runTransaction, query, where, getDocs, arrayUnion } from 'firebase/firestore'
 import { computeOfferResult, getOfferDisplayUnits } from '../utils/offerUtils'
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
+import { ref, uploadBytesResumable } from 'firebase/storage'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCartShopping, faUser, faClipboardList, faTruck, faGift, faCreditCard, faMoneyBill, faWallet, faCamera, faTriangleExclamation, faCircleCheck, faClock, faXmark, faLocationDot, faTrash, faTag } from '@fortawesome/free-solid-svg-icons'
 import { db, storage } from '../firebase/config.jsx'
@@ -45,6 +45,52 @@ function getTomorrowStr() {
   const d = new Date()
   d.setDate(d.getDate() + 1)
   return d.toISOString().split('T')[0]
+}
+
+// Downscale + re-encode an image (canvas) so it is comfortably under the 5 MB Storage
+// limit no matter how large the original phone photo is. Falls back to the original file
+// if anything goes wrong or compression wouldn't help.
+async function compressImage(file, maxWidth = 1200, quality = 0.8) {
+  if (!file.type?.startsWith('image/')) return file
+  try {
+    const dataUrl = await new Promise((res, rej) => {
+      const reader = new FileReader()
+      reader.onload  = () => res(reader.result)
+      reader.onerror = rej
+      reader.readAsDataURL(file)
+    })
+    const img = await new Promise((res, rej) => {
+      const i = new Image()
+      i.onload  = () => res(i)
+      i.onerror = rej
+      i.src = dataUrl
+    })
+    const scale  = Math.min(1, maxWidth / img.width)
+    const canvas = document.createElement('canvas')
+    canvas.width  = Math.round(img.width  * scale)
+    canvas.height = Math.round(img.height * scale)
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', quality))
+    return blob && blob.size < file.size ? blob : file
+  } catch {
+    return file
+  }
+}
+
+// Map Firebase Storage error codes to clear, specific user-facing messages.
+function uploadErrorMessage(err) {
+  switch (err?.code) {
+    case 'storage/unauthorized':
+      return 'Receipt upload was blocked by the server (permission denied). Please contact us so we can confirm your order manually.'
+    case 'storage/retry-limit-exceeded':
+      return 'The receipt upload timed out — please check your connection and try again.'
+    case 'storage/canceled':
+      return 'The receipt upload was canceled — please try again.'
+    case 'storage/quota-exceeded':
+      return 'Our storage is temporarily full — please contact us to complete your order.'
+    default:
+      return 'Couldn’t upload your payment receipt — please try again, or contact us if it keeps failing.'
+  }
 }
 
 export default function Checkout() {
@@ -115,7 +161,9 @@ export default function Checkout() {
     const file = e.target.files[0]
     if (!file) return
     if (!file.type.startsWith('image/')) { toast.error('Please select an image file'); return }
-    if (file.size > 5 * 1024 * 1024)    { toast.error('Image must be under 5MB'); return }
+    // Large phone photos are fine — they're compressed before upload. Cap the raw file
+    // generously so we don't choke the browser on something enormous.
+    if (file.size > 20 * 1024 * 1024)    { toast.error('Image must be under 20MB'); return }
     setDepositFile(file)
     setDepositPreview(URL.createObjectURL(file))
   }
@@ -167,21 +215,28 @@ export default function Checkout() {
     let stockErrors = []
 
     // Upload the payment proof BEFORE creating the order. The order id is generated
-    // client-side above, so we can write to deposits/{orderId} up front. This avoids a
+    // client-side above, so we can write to deposits/{orderId}/{file} up front. This avoids a
     // post-creation updateDoc on the order (Firestore rules only allow admins to update
-    // orders, so that write was being denied — which is what surfaced the generic error
-    // even though the order had already been created). Uploading first also means a failed
-    // upload never leaves a silent, receipt-less order behind.
-    let depositImageUrl = null
+    // orders), and uploading first means a failed upload never leaves a silent, receipt-less
+    // order behind.
+    //
+    // IMPORTANT: the customer must NOT call getDownloadURL() here — Storage read on
+    // deposits/ is restricted (admin-only in practice), so the read-back was returning 403
+    // and being treated as a failed upload. Instead we persist the storage PATH on the order
+    // and let the admin panel resolve the URL (the admin is authenticated and may read).
+    let paymentProofPath = null
     if ((needsDeposit || needsTransferUpload) && depositFile) {
       try {
-        const storageRef = ref(storage, `deposits/${newOrderRef.id}`)
-        const task = uploadBytesResumable(storageRef, depositFile)
+        const toUpload    = await compressImage(depositFile)
+        const contentType = toUpload.type === 'image/png' ? 'image/png' : 'image/jpeg'
+        const ext         = contentType === 'image/png' ? 'png' : 'jpg'
+        paymentProofPath  = `deposits/${newOrderRef.id}/proof_${Date.now()}.${ext}`
+        const task = uploadBytesResumable(ref(storage, paymentProofPath), toUpload, { contentType })
         await new Promise((res, rej) => task.on('state_changed', null, rej, res))
-        depositImageUrl = await getDownloadURL(task.snapshot.ref)
       } catch (err) {
-        console.error('Payment proof upload failed:', err)
-        toast.error('Couldn’t upload your payment receipt — please check your connection and try again.', { duration: 5000 })
+        // Log the full error + code (e.g. storage/unauthorized) so failures are diagnosable.
+        console.error('Payment proof upload failed:', err, '· code:', err?.code)
+        toast.error(uploadErrorMessage(err), { duration: 6000 })
         setLoading(false)
         return
       }
@@ -256,7 +311,7 @@ export default function Checkout() {
           appliedOffer: (appliedOffer && !appliedPromo) ? { id: appliedOffer.id, title: appliedOffer.title, type: appliedOffer.type, discountAmount: verifiedOfferDiscount } : null,
           appliedPromo: appliedPromo ? { id: appliedPromo.id, code: appliedPromo.code, discountPercent: appliedPromo.discountPercent, discountAmount: verifiedPromoDiscount } : null,
           discountAmount: verifiedEffectiveDiscount, paymentMethod, requiresDeposit: needsDeposit, depositAmount: verifiedDeposit,
-          depositStatus: (needsDeposit || needsTransferUpload) ? 'submitted' : 'not_required', depositImageUrl,
+          depositStatus: (needsDeposit || needsTransferUpload) ? 'submitted' : 'not_required', paymentProofPath,
           orderNote: orderNote.trim() || null, deliveryDate: deliveryDate || null, status: getOrderStatus(), createdAt: serverTimestamp(),
         }
 
@@ -532,7 +587,7 @@ export default function Checkout() {
                   : <div className="upload-placeholder">
                       <div className="upload-icon"><FontAwesomeIcon icon={faCamera} style={{ fontSize: 40, color: 'var(--brown-light)' }} /></div>
                       <p className="upload-text">Click to upload transfer screenshot</p>
-                      <p className="upload-hint">JPG, PNG — max 5MB</p>
+                      <p className="upload-hint">JPG, PNG — large photos are optimised automatically</p>
                     </div>
                 }
               </label>
@@ -569,7 +624,7 @@ export default function Checkout() {
                   : <div className="upload-placeholder">
                       <div className="upload-icon"><FontAwesomeIcon icon={faCamera} style={{ fontSize: 40, color: 'var(--brown-light)' }} /></div>
                       <p className="upload-text">Click to upload transfer screenshot</p>
-                      <p className="upload-hint">JPG, PNG — max 5MB</p>
+                      <p className="upload-hint">JPG, PNG — large photos are optimised automatically</p>
                     </div>
                 }
               </label>

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { collection, getDocs, updateDoc, doc } from 'firebase/firestore'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faTriangleExclamation, faArrowsRotate, faEye, faXmark, faCircleCheck, faTruck, faCalendarDays, faBox, faCreditCard, faMoneyBill, faWallet } from '@fortawesome/free-solid-svg-icons'
-import { db } from '../../firebase/config.jsx'
+import { ref, getDownloadURL } from 'firebase/storage'
+import { db, storage } from '../../firebase/config.jsx'
 import { InlineLoader } from '../../components/Loader.jsx'
 import toast from 'react-hot-toast'
 
@@ -37,6 +38,28 @@ export default function AdminOrders() {
   const [viewing,          setViewing]          = useState(null)
   const [confirmingId,     setConfirmingId]     = useState(null)
   const [deliveryEstimate, setDeliveryEstimate] = useState('')
+  const [proofUrl,         setProofUrl]         = useState(null)
+  const [proofLoading,     setProofLoading]     = useState(false)
+
+  // Resolve the payment-proof image when an order is opened. New orders store a storage
+  // PATH (paymentProofPath) that only an authenticated admin may read; legacy orders stored a
+  // direct download URL (depositImageUrl). The customer never reads the proof, so resolving
+  // it here keeps Storage read locked to the admin.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    let cancelled = false
+    setProofUrl(null)
+    if (!viewing) return
+    if (viewing.depositImageUrl) { setProofUrl(viewing.depositImageUrl); return }
+    if (!viewing.paymentProofPath) return
+    setProofLoading(true)
+    getDownloadURL(ref(storage, viewing.paymentProofPath))
+      .then(url => { if (!cancelled) setProofUrl(url) })
+      .catch(err => console.error('Failed to load payment proof:', err, '· code:', err?.code))
+      .finally(() => { if (!cancelled) setProofLoading(false) })
+    return () => { cancelled = true }
+  }, [viewing?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   async function load() {
     setLoading(true)
@@ -199,17 +222,21 @@ export default function AdminOrders() {
               <span>Total</span><span>{viewing.total} EGP</span>
             </div>
 
-            {(viewing.requiresDeposit || viewing.depositImageUrl) && (
+            {(viewing.requiresDeposit || viewing.paymentProofPath || viewing.depositImageUrl) && (
               <div style={{ margin: '16px 0', padding: 16, background: 'var(--pink-light)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--pink-dark)' }}>
                 <p style={{ fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                   {viewing.requiresDeposit
                     ? <><FontAwesomeIcon icon={faWallet} style={{ fontSize: 15 }} /> Deposit: {viewing.depositAmount} EGP</>
                     : <><FontAwesomeIcon icon={faCreditCard} style={{ fontSize: 15 }} /> Transfer Receipt ({PAYMENT_LABELS[viewing.paymentMethod] || viewing.paymentMethod})</>}
                 </p>
-                {viewing.depositImageUrl ? (
-                  <a href={viewing.depositImageUrl} target="_blank" rel="noreferrer">
-                    <img src={viewing.depositImageUrl} alt="payment receipt" loading="lazy" style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, cursor: 'pointer', display: 'block' }} />
+                {proofLoading ? (
+                  <p style={{ fontSize: 13, color: 'var(--text-light)' }}>Loading receipt…</p>
+                ) : proofUrl ? (
+                  <a href={proofUrl} target="_blank" rel="noreferrer">
+                    <img src={proofUrl} alt="payment receipt" loading="lazy" style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, cursor: 'pointer', display: 'block' }} />
                   </a>
+                ) : (viewing.paymentProofPath || viewing.depositImageUrl) ? (
+                  <p style={{ fontSize: 13, color: 'var(--text-light)' }}>Couldn’t load receipt image.</p>
                 ) : (
                   <p style={{ fontSize: 13, color: 'var(--text-light)' }}>No receipt uploaded yet</p>
                 )}
