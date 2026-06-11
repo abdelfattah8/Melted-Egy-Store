@@ -185,7 +185,7 @@ export default function ProductCard({ product }) {
                 <span className="qty-value">{qty}</span>
                 <button className="qty-btn" onClick={inc} disabled={qty + inCart >= maxQty}>+</button>
               </div>
-              <span style={{ fontSize: 12, color: 'var(--text-light)' }}>Max {maxQty}</span>
+              {/* <span style={{ fontSize: 12, color: 'var(--text-light)' }}>Max {maxQty}</span> */}
             </div>
             <button
               className="add-to-cart-btn"

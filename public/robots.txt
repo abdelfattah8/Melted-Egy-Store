@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://melted-egypt.vercel.app/sitemap.xml
+Sitemap: https://meltedegypt.vip/sitemap.xml

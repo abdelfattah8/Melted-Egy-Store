@@ -1,6 +1,6 @@
 import { Helmet } from 'react-helmet-async'
 
-const BASE_URL = 'https://melted-egypt.vercel.app'
+const BASE_URL = 'https://meltedegypt.vip'
 const DEFAULT_IMAGE = `${BASE_URL}/og-image.jpg`
 
 export default function SEO({

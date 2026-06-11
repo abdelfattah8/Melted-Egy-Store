@@ -30,9 +30,9 @@ const LOCAL_BUSINESS_SCHEMA = {
   '@type': 'Bakery',
   name: 'Melted Egypt',
   description: 'Premium handcrafted cookies, brownies, cheesecake & tiramisu. Fresh baked to order and delivered in Cairo & Giza.',
-  url: 'https://melted-egypt.vercel.app',
-  logo: 'https://melted-egypt.vercel.app/cookie.png',
-  image: 'https://melted-egypt.vercel.app/og-image.jpg',
+  url: 'https://meltedegypt.vip',
+  logo: 'https://meltedegypt.vip/cookie.png',
+  image: 'https://meltedegypt.vip/og-image.jpg',
   servesCuisine: 'Desserts, Cookies, Bakery',
   priceRange: '$$',
   areaServed: ['Cairo', 'Giza'],
@@ -354,25 +354,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── FEATURED PRODUCTS ── */}
-      <section className="section" style={{ background: 'var(--cream)' }}>
-        <Reveal style={{ textAlign: 'center', marginBottom: 48 }}>
-          <p className="section-label">Most Popular</p>
-          <h2 className="section-title">Featured Products</h2>
-          <p className="section-sub">Our most-loved handcrafted treats</p>
-        </Reveal>
-        <div className="products-grid">
-          {loading
-            ? Array.from({ length: 4 }).map((_, i) => <ProductSkeleton key={i} />)
-            : featured.map((p, i) => <Reveal key={p.id} delay={i * 0.1}><ProductCard product={p} /></Reveal>)
-          }
-        </div>
-        {!loading && (
-          <div style={{ textAlign: 'center', marginTop: 48 }}>
-            <button className="btn btn-outline" onClick={() => navigate('/shop')}>View All Products →</button>
-          </div>
-        )}
-      </section>
+      
 
       {/* ── CATEGORIES ── */}
       <section className="section" style={{ background: 'var(--cream-dark)' }}>
@@ -437,6 +419,26 @@ export default function Home() {
             </Reveal>
           ))}
         </div>
+      </section>
+
+      {/* ── FEATURED PRODUCTS ── */}
+      <section className="section" style={{ background: 'var(--cream)' }}>
+        <Reveal style={{ textAlign: 'center', marginBottom: 48 }}>
+          <p className="section-label">Most Popular</p>
+          <h2 className="section-title">Featured Products</h2>
+          <p className="section-sub">Our most-loved handcrafted treats</p>
+        </Reveal>
+        <div className="products-grid">
+          {loading
+            ? Array.from({ length: 4 }).map((_, i) => <ProductSkeleton key={i} />)
+            : featured.map((p, i) => <Reveal key={p.id} delay={i * 0.1}><ProductCard product={p} /></Reveal>)
+          }
+        </div>
+        {!loading && (
+          <div style={{ textAlign: 'center', marginTop: 48 }}>
+            <button className="btn btn-outline" onClick={() => navigate('/shop')}>View All Products →</button>
+          </div>
+        )}
       </section>
 
       {/* ── ELEGANT PACKAGING ── */}
