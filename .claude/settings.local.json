@@ -13,7 +13,13 @@
       "PowerShell(python -c \"import PIL; print\\('pillow', PIL.__version__\\)\")",
       "PowerShell(python -c \"from PIL import Image; im = Image.open\\(r'src\\\\assets\\\\brand\\\\melted-logo-pink.png'\\); print\\(im.mode, im.size\\); im2 = im.convert\\('RGBA'\\); a = im2.getchannel\\('A'\\); print\\('alpha min/max:', a.getextrema\\(\\)\\); print\\('corner px:', im2.getpixel\\(\\(0,0\\)\\)\\)\")",
       "PowerShell(python -c \"from PIL import Image; [print\\(p, Image.open\\(p\\).mode, Image.open\\(p\\).size, 'corner alpha:', Image.open\\(p\\).convert\\('RGBA'\\).getpixel\\(\\(0,0\\)\\)[3]\\) for p in [r'public\\\\favicon-16x16.png', r'public\\\\favicon-32x32.png', r'public\\\\apple-touch-icon.png']]\")",
-      "PowerShell(node -e \"const i=require\\('@fortawesome/free-solid-svg-icons'\\); console.log\\('faIceCream', !!i.faIceCream, '| faJarWheat', !!i.faJarWheat, '| faCirclePlus', !!i.faCirclePlus\\)\")"
+      "PowerShell(node -e \"const i=require\\('@fortawesome/free-solid-svg-icons'\\); console.log\\('faIceCream', !!i.faIceCream, '| faJarWheat', !!i.faJarWheat, '| faCirclePlus', !!i.faCirclePlus\\)\")",
+      "PowerShell(npx playwright test e2e/05-offers.spec.js)",
+      "PowerShell(Copy-Item *)",
+      "PowerShell(npm run *)",
+      "PowerShell(Select-String -Path \"test-results\\\\02-browsing-shop-tabs-All-New-Bites-Boxes-with-sub-filters\\\\error-context.md\" -Pattern \"NEW|product-card|heading|Louts|Cookie|Tiramisu|Brownie\" | Select-Object -First 40 | ForEach-Object { $_.Line.Trim\\(\\) })",
+      "PowerShell(npx playwright test e2e/02-browsing.spec.js --repeat-each=3)",
+      "PowerShell(\\(Get-Content e2e\\\\.run-state.json | ConvertFrom-Json\\) | Select-Object email -ExpandProperty orders | Format-Table)"
     ]
   }
 }

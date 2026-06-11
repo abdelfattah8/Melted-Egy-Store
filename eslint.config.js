@@ -25,4 +25,11 @@ export default defineConfig([
       globals: { ...globals.browser, ...globals.node },
     },
   },
+  // Playwright E2E specs run in Node (helpers also touch the browser via page.evaluate)
+  {
+    files: ['e2e/**/*.{js,mjs}', 'playwright.config.js'],
+    languageOptions: {
+      globals: { ...globals.browser, ...globals.node },
+    },
+  },
 ])

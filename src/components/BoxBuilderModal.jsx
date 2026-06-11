@@ -26,6 +26,9 @@ export default function BoxBuilderModal({ box, onClose, onAdded }) {
 
   const isCounting    = COUNTING_CATS.includes(box.category)
   const boxSize       = box.boxSize || 0
+  // Respect an active sale — same as ProductCard does for bites
+  const onSale        = box.onSale && box.salePrice && box.salePrice < box.price
+  const activePrice   = onSale ? box.salePrice : box.price
   const totalSelected = Object.values(choices).reduce((s, v) => s + v, 0)
   const remaining     = isCounting ? boxSize - totalSelected : (totalSelected === 1 ? 0 : 1)
   const canAdd        = isCounting ? totalSelected === boxSize : totalSelected === 1
@@ -70,7 +73,7 @@ export default function BoxBuilderModal({ box, onClose, onAdded }) {
     const choiceList = flavors
       .filter(f => choices[f.id] > 0)
       .map(f => ({ id: f.id, name: f.name, quantity: choices[f.id], imageUrl: f.imageUrl || '' }))
-    addBoxToCart(box, choiceList)
+    addBoxToCart({ ...box, price: activePrice }, choiceList)
     toast.success(`${box.name} added to cart! 🎁`)
     if (onAdded) onAdded()
     else onClose()
@@ -197,7 +200,12 @@ export default function BoxBuilderModal({ box, onClose, onAdded }) {
         <div className="bbm-footer">
           <div className="bbm-price-block">
             <span className="bbm-price">
-              {box.price} <small>EGP</small>
+              {onSale && (
+                <span style={{ fontSize: 14, fontWeight: 400, color: 'var(--text-light)', textDecoration: 'line-through', marginRight: 6 }}>
+                  {box.price}
+                </span>
+              )}
+              {activePrice} <small>EGP</small>
             </span>
             <span className="bbm-price-label">Fixed box price</span>
           </div>

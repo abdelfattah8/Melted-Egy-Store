@@ -19,3 +19,8 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Playwright E2E artifacts
+test-results/
+playwright-report/
+e2e/.run-state*.json

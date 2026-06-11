@@ -138,10 +138,11 @@ export default function OfferPickerModal({ offer, onConfirm, onCancel }) {
 
   return (
     <div
+      className="offer-picker-overlay"
       style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
       onClick={e => { if (e.target === e.currentTarget) onCancel() }}
     >
-      <div style={{ background: 'var(--white)', borderRadius: 'var(--radius)', width: '100%', maxWidth: 560, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 48px rgba(0,0,0,0.18)' }}>
+      <div className="offer-picker-modal" style={{ background: 'var(--white)', borderRadius: 'var(--radius)', width: '100%', maxWidth: 560, maxHeight: '88vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 48px rgba(0,0,0,0.18)' }}>
         {/* Header */}
         <div style={{ padding: '20px 24px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 17, color: 'var(--brown-dark)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
