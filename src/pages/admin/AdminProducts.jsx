@@ -8,10 +8,12 @@ import { InlineLoader } from '../../components/Loader.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import toast from 'react-hot-toast'
 
-const EMPTY     = { name: '', description: '', price: '', category: 'cookies', available: true, imageUrl: '', onSale: false, salePrice: '', isNew: false, stock: '', flavorIds: [], extraIds: [] }
-const BOX_EMPTY = { name: '', description: '', price: '', boxCategory: 'cookies', boxSize: '', stock: '', available: true, imageUrl: '', onSale: false, salePrice: '', isNew: false }
+const EMPTY      = { name: '', description: '', price: '', category: 'cookies', available: true, imageUrl: '', onSale: false, salePrice: '', isNew: false, stock: '', flavorIds: [], extraIds: [] }
+const BOX_EMPTY  = { name: '', description: '', price: '', boxCategory: 'cookies', boxSize: '', stock: '', available: true, imageUrl: '', onSale: false, salePrice: '', isNew: false }
+const BITE_EMPTY = { name: '', description: '', price: '', biteCategory: 'cookies', pieceCount: '', contents: [], stock: '', available: true, imageUrl: '', onSale: false, salePrice: '', isNew: false, extraIds: [] }
 
-const CATEGORIES = ['cookies', 'brownies', 'cheesecake', 'tiramisu']
+const CATEGORIES      = ['cookies', 'brownies', 'cheesecake', 'tiramisu']
+const BITE_CATEGORIES = ['cookies', 'brownies'] // bites only come in these two
 const CAT_ICONS  = { cookies: faCookieBite, brownies: faLayerGroup, cheesecake: faCakeCandles, tiramisu: faMugHot }
 const COUNTING   = ['cookies', 'brownies']
 
@@ -23,6 +25,22 @@ function validate(form) {
     if (!form.salePrice || Number(form.salePrice) <= 0)       errs.salePrice = 'Enter a valid sale price'
     if (Number(form.salePrice) >= Number(form.price))         errs.salePrice = 'Sale price must be less than original price'
   }
+  if (form.stock !== '' && (isNaN(Number(form.stock)) || Number(form.stock) < 0 || !Number.isInteger(Number(form.stock)))) {
+    errs.stock = 'Stock must be a whole number (0 or more)'
+  }
+  return errs
+}
+
+function validateBite(form) {
+  const errs = {}
+  if (!form.name.trim())                      errs.name  = 'Bite name is required'
+  if (!form.price || Number(form.price) <= 0) errs.price = 'Enter a valid price'
+  if (form.onSale) {
+    if (!form.salePrice || Number(form.salePrice) <= 0)       errs.salePrice = 'Enter a valid sale price'
+    if (Number(form.salePrice) >= Number(form.price))         errs.salePrice = 'Sale price must be less than original price'
+  }
+  const n = Number(form.pieceCount)
+  if (!form.pieceCount || !Number.isInteger(n) || n < 1) errs.pieceCount = 'Enter a valid piece count (1 or more)'
   if (form.stock !== '' && (isNaN(Number(form.stock)) || Number(form.stock) < 0 || !Number.isInteger(Number(form.stock)))) {
     errs.stock = 'Stock must be a whole number (0 or more)'
   }
@@ -98,11 +116,33 @@ export default function AdminProducts() {
     setImgFile(null); setImgPreview(''); setErrors({}); setUploadProgress(0); setModal(true)
   }
 
+  function openNewBite() {
+    setFormType('bite'); setEditing(null); setForm(BITE_EMPTY)
+    setImgFile(null); setImgPreview(''); setErrors({}); setUploadProgress(0); setModal(true)
+  }
+
+  function biteFormFrom(p, overrides = {}) {
+    return { name: p.name, description: p.description || '', price: p.price, biteCategory: p.category || 'cookies', pieceCount: p.pieceCount ?? '', contents: p.contents || [], stock: p.stock ?? '', available: p.available, imageUrl: p.imageUrl || '', onSale: p.onSale || false, salePrice: p.salePrice || '', isNew: p.isNew || false, extraIds: p.extraIds || [], ...overrides }
+  }
+
+  // Switching the bite category prunes contents that no longer match it
+  function setBiteCategory(e) {
+    const cat = e.target.value
+    setForm(f => ({
+      ...f,
+      biteCategory: cat,
+      contents: (f.contents || []).filter(c => products.find(p => p.id === c.id)?.category === cat),
+    }))
+  }
+
   function openEdit(p) {
     setEditing(p)
     if (p.type === 'box') {
       setFormType('box')
       setForm({ name: p.name, description: p.description || '', price: p.price, boxCategory: p.boxCategory || p.category, boxSize: p.boxSize ?? '', stock: p.stock ?? '', available: p.available, imageUrl: p.imageUrl || '', onSale: p.onSale || false, salePrice: p.salePrice || '', isNew: p.isNew || false })
+    } else if (p.type === 'bite') {
+      setFormType('bite')
+      setForm(biteFormFrom(p))
     } else {
       setFormType('product')
       setForm({ name: p.name, description: p.description || '', price: p.price, category: p.category, available: p.available, imageUrl: p.imageUrl || '', onSale: p.onSale || false, salePrice: p.salePrice || '', isNew: p.isNew || false, stock: p.stock ?? '', flavorIds: p.flavorIds || [], extraIds: p.extraIds || [] })
@@ -131,7 +171,7 @@ export default function AdminProducts() {
   }
 
   async function handleSave() {
-    const errs = formType === 'box' ? validateBox(form) : validate(form)
+    const errs = formType === 'box' ? validateBox(form) : formType === 'bite' ? validateBite(form) : validate(form)
     setErrors(errs)
     if (Object.keys(errs).length) return
     setSaving(true)
@@ -145,7 +185,26 @@ export default function AdminProducts() {
       }
 
       let data
-      if (formType === 'box') {
+      if (formType === 'bite') {
+        data = {
+          type: 'bite',
+          name: form.name.trim(),
+          description: form.description.trim(),
+          price: Number(form.price),
+          category: form.biteCategory,
+          pieceCount: Number(form.pieceCount),
+          contents: form.contents || [],
+          available: form.available,
+          imageUrl: imageUrl || '',
+          onSale: form.onSale,
+          salePrice: form.onSale ? Number(form.salePrice) : null,
+          isNew: form.isNew,
+          stock: form.stock !== '' ? Number(form.stock) : null,
+          // No admin-assigned flavors — the customer picks ONE flavor at purchase
+          extraIds: form.extraIds || [],
+          updatedAt: new Date(),
+        }
+      } else if (formType === 'box') {
         data = {
           type: 'box',
           name: form.name.trim(),
@@ -173,12 +232,13 @@ export default function AdminProducts() {
         }
       }
 
+      const typeLabel = formType === 'box' ? 'Box' : formType === 'bite' ? 'Bite' : 'Product'
       if (editing) {
         await updateDoc(doc(db, 'products', editing.id), data)
-        toast.success(`${formType === 'box' ? 'Box' : 'Product'} updated!`)
+        toast.success(`${typeLabel} updated!`)
       } else {
         await addDoc(collection(db, 'products'), { ...data, createdAt: new Date() })
-        toast.success(`${formType === 'box' ? 'Box' : 'Product'} added!`)
+        toast.success(`${typeLabel} added!`)
       }
       setModal(false); load()
     } catch (err) {
@@ -215,6 +275,9 @@ export default function AdminProducts() {
       if (p.type === 'box') {
         setFormType('box')
         setForm({ name: p.name, description: p.description || '', price: p.price, boxCategory: p.boxCategory || p.category, boxSize: p.boxSize ?? '', stock: p.stock ?? '', available: p.available, imageUrl: p.imageUrl || '', onSale: true, salePrice: '', isNew: p.isNew || false })
+      } else if (p.type === 'bite') {
+        setFormType('bite')
+        setForm(biteFormFrom(p, { onSale: true, salePrice: '' }))
       } else {
         setFormType('product')
         setForm({ name: p.name, description: p.description || '', price: p.price, category: p.category, available: p.available, imageUrl: p.imageUrl || '', onSale: true, salePrice: '', isNew: p.isNew || false, stock: p.stock ?? '', flavorIds: p.flavorIds || [], extraIds: p.extraIds || [] })
@@ -248,6 +311,9 @@ export default function AdminProducts() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
         <h2 className="admin-page-title" style={{ marginBottom: 0 }}>Products</h2>
         <div style={{ display: 'flex', gap: 10 }}>
+          <button className="btn btn-outline btn-sm" onClick={openNewBite} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <FontAwesomeIcon icon={faCookieBite} style={{ fontSize: 14 }} /> Add Bite
+          </button>
           <button className="btn btn-outline btn-sm" onClick={openNewBox} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <FontAwesomeIcon icon={faBoxOpen} style={{ fontSize: 14 }} /> Add Box
           </button>
@@ -268,6 +334,7 @@ export default function AdminProducts() {
               {products.map(p => {
                 const catIcon  = CAT_ICONS[p.category] || faUtensils
                 const isBox    = p.type === 'box'
+                const isBite   = p.type === 'bite'
                 return (
                   <tr key={p.id} style={{ background: p.onSale ? '#FFF8E7' : '' }}>
                     <td>
@@ -282,11 +349,15 @@ export default function AdminProducts() {
                       {isBox && (
                         <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--brown)', background: 'var(--pink-light)', borderRadius: 4, padding: '1px 7px', marginLeft: 6, verticalAlign: 'middle' }}>BOX</span>
                       )}
+                      {isBite && (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'white', background: 'var(--brown)', borderRadius: 4, padding: '1px 7px', marginLeft: 6, verticalAlign: 'middle' }}>BITE</span>
+                      )}
                       {p.name}
                     </td>
                     <td style={{ textTransform: 'capitalize' }}>
                       {p.category}
                       {isBox && p.boxSize && <span style={{ fontSize: 11, color: 'var(--text-light)', display: 'block' }}>{p.boxSize} pcs</span>}
+                      {isBite && p.pieceCount && <span style={{ fontSize: 11, color: 'var(--text-light)', display: 'block' }}>{p.pieceCount} pcs</span>}
                     </td>
                     <td>
                       {p.onSale && p.salePrice ? (
@@ -345,15 +416,17 @@ export default function AdminProducts() {
               <h3 style={{ margin: 0 }}>
                 {formType === 'box'
                   ? (editing ? 'Edit Box' : 'Add New Box')
-                  : (editing ? 'Edit Product' : 'Add New Product')}
+                  : formType === 'bite'
+                    ? (editing ? 'Edit Bite' : 'Add New Bite')
+                    : (editing ? 'Edit Product' : 'Add New Product')}
               </h3>
             </div>
 
             {/* Shared: Name */}
             <div className="form-group">
-              <label className="form-label">{formType === 'box' ? 'Box Name' : 'Product Name'} *</label>
+              <label className="form-label">{formType === 'box' ? 'Box Name' : formType === 'bite' ? 'Bite Name' : 'Product Name'} *</label>
               <input
-                placeholder={formType === 'box' ? 'e.g. Cookie Assortment Box' : 'e.g. Nutella Stuffed Cookies'}
+                placeholder={formType === 'box' ? 'e.g. Cookie Assortment Box' : formType === 'bite' ? 'e.g. Mini Cookie Bites' : 'e.g. Nutella Stuffed Cookies'}
                 value={form.name} onChange={set('name')} className={errors.name ? 'error' : ''}
               />
               {errors.name && <div className="field-error"><FontAwesomeIcon icon={faTriangleExclamation} style={{ fontSize: 12 }} /> {errors.name}</div>}
@@ -399,6 +472,52 @@ export default function AdminProducts() {
                     : `Customer picks exactly one ${form.boxCategory} flavor.`}
                 </div>
               </>
+            ) : formType === 'bite' ? (
+              <>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Price (EGP) *</label>
+                    <input type="number" placeholder="120" value={form.price} onChange={set('price')} min={1} className={errors.price ? 'error' : ''} />
+                    {errors.price && <div className="field-error"><FontAwesomeIcon icon={faTriangleExclamation} style={{ fontSize: 12 }} /> {errors.price}</div>}
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Category *</label>
+                    <select value={form.biteCategory} onChange={setBiteCategory}>
+                      {BITE_CATEGORIES.map(c => <option key={c} value={c}>{c.charAt(0).toUpperCase() + c.slice(1)}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Piece Count *</label>
+                  <input type="number" placeholder="e.g. 4" value={form.pieceCount} onChange={set('pieceCount')} min={1} step={1} style={{ maxWidth: 180 }} className={errors.pieceCount ? 'error' : ''} />
+                  {errors.pieceCount && <div className="field-error"><FontAwesomeIcon icon={faTriangleExclamation} style={{ fontSize: 12 }} /> {errors.pieceCount}</div>}
+                  <div style={{ fontSize: 12, color: 'var(--text-light)', marginTop: 4 }}>How many pieces this bite contains — fixed by you, the customer doesn't pick.</div>
+                </div>
+
+                {/* Contents — optional link to existing products */}
+                <div className="form-group">
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <FontAwesomeIcon icon={faCookieBite} style={{ fontSize: 13, color: 'var(--brown)' }} /> Contents
+                    <span style={{ fontSize: 11, color: 'var(--text-light)', fontWeight: 400 }}>— optional: which {form.biteCategory} products it consists of</span>
+                  </label>
+                  {products.filter(p => !p.type && p.category === form.biteCategory).length === 0 ? (
+                    <div style={{ fontSize: 12, color: 'var(--text-light)' }}>No {form.biteCategory} products yet — you can still define the bite by name and description alone.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {products.filter(p => !p.type && p.category === form.biteCategory).map(p => {
+                        const checked = (form.contents || []).some(c => c.id === p.id)
+                        return (
+                          <button key={p.id} type="button" onClick={() => setForm(f => ({ ...f, contents: checked ? f.contents.filter(c => c.id !== p.id) : [...(f.contents || []), { id: p.id, name: p.name }] }))} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 50, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins,sans-serif', transition: 'all 0.2s', border: checked ? '1.5px solid var(--brown)' : '1.5px solid var(--border)', background: checked ? 'var(--brown)' : 'white', color: checked ? 'white' : 'var(--text)' }}>
+                            {checked && <FontAwesomeIcon icon={faCircleCheck} style={{ fontSize: 12 }} />}
+                            {p.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
             ) : (
               <div className="form-row">
                 <div className="form-group">
@@ -423,9 +542,9 @@ export default function AdminProducts() {
               <div style={{ fontSize: 12, color: 'var(--text-light)', marginTop: 4 }}>Set to 0 to mark as out of stock. Leave empty for unlimited.</div>
             </div>
 
-            {/* Flavors + Extras — products only (boxes have their own flavor picker) */}
-            {formType !== 'box' && (
-              <>
+            {/* Flavors — plain products only (boxes have their own picker; bite customers
+                choose ONE flavor from the flavors list when adding to cart) */}
+            {formType === 'product' && (
                 <div className="form-group">
                   <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <FontAwesomeIcon icon={faIceCream} style={{ fontSize: 13, color: 'var(--brown)' }} /> Flavors
@@ -447,7 +566,10 @@ export default function AdminProducts() {
                     </div>
                   )}
                 </div>
+            )}
 
+            {/* Extras — products and bites */}
+            {formType !== 'box' && (
                 <div className="form-group">
                   <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <FontAwesomeIcon icon={faJarWheat} style={{ fontSize: 13, color: 'var(--brown)' }} /> Available Extras
@@ -469,7 +591,6 @@ export default function AdminProducts() {
                     </div>
                   )}
                 </div>
-              </>
             )}
 
             {/* Sale toggle */}
@@ -537,7 +658,7 @@ export default function AdminProducts() {
 
             <div style={{ display: 'flex', gap: 12 }}>
               <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ flex: 1 }}>
-                {saving ? 'Saving...' : editing ? 'Save Changes' : formType === 'box' ? 'Add Box' : 'Add Product'}
+                {saving ? 'Saving...' : editing ? 'Save Changes' : formType === 'box' ? 'Add Box' : formType === 'bite' ? 'Add Bite' : 'Add Product'}
               </button>
               <button className="btn btn-outline" onClick={() => setModal(false)}>Cancel</button>
             </div>

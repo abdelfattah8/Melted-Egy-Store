@@ -37,7 +37,7 @@ function FieldError({ errors, name }) {
 const OFFER_TYPE_LABEL = {
   buy1get1:      'Buy 1 Get 1 Free',
   buy2get1:      'Buy 2 Get 1 Free',
-  box_gift:      'Buy Box, Get Bite Free',
+  box_gift:      'Buy Box, Get Item Free',
   free_delivery: 'Free Delivery',
   custom:        'Custom Discount',
 }
@@ -291,6 +291,12 @@ export default function Checkout() {
         const verifiedItems    = cartItems.map(i => {
           const base = { id: i.id, name: i.name, price: priceMap[i.id] ?? i.price, quantity: Math.min(i.quantity, stockMap[i.id] ?? 100), category: i.category }
           if (i.type === 'box') { base.type = 'box'; base.boxChoices = i.boxChoices || [] }
+          else if (i.type === 'bite') {
+            base.type = 'bite'
+            base.pieceCount = i.pieceCount ?? null
+            // Customer-chosen flavor (informational, no price impact)
+            if (i.flavor) base.flavor = { id: i.flavor.id, name: i.flavor.name }
+          }
           const verifiedExtras = (i.extras || [])
             .filter(e => extrasMap[e.id])
             .map(e => ({ id: e.id, name: extrasMap[e.id].name, price: extrasMap[e.id].price }))
@@ -681,6 +687,11 @@ export default function Checkout() {
                   {item.type === 'box' && item.boxChoices?.length > 0 && (
                     <div style={{ fontSize: 12, color: 'var(--text-light)', marginTop: 3, lineHeight: 1.5 }}>
                       {item.boxChoices.map(c => c.quantity > 1 ? `${c.name} ×${c.quantity}` : c.name).join(' · ')}
+                    </div>
+                  )}
+                  {item.flavor && (
+                    <div style={{ fontSize: 12, color: 'var(--brown)', marginTop: 3, lineHeight: 1.5, fontWeight: 600 }}>
+                      Flavor: {item.flavor.name}
                     </div>
                   )}
                   {item.extras?.length > 0 && (

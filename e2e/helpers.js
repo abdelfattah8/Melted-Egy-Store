@@ -81,8 +81,31 @@ export async function clearCartStorage(page) {
 }
 
 /**
+ * Shop tab switches re-query Firestore while the OLD grid stays mounted, so any
+ * count/iteration must wait for the transition to finish. Ordered waits:
+ * 1. `absent` (an item only in the previous grid) disappears — true once the old
+ *    grid unmounts (also true during the loading gap, which is why step 2 exists);
+ * 2. `present` (an item only in the new grid) renders — true only once the new
+ *    grid is final. Pass `emptyOk: true` when the new grid may have no items.
+ */
+export async function settleGrid(page, { absent, present, emptyOk = false } = {}) {
+  if (absent) {
+    await expect(page.locator('.product-card').filter({ hasText: absent })).toHaveCount(0, { timeout: 20_000 })
+  }
+  if (present) {
+    await expect(page.locator('.product-card').filter({ hasText: present })).toBeVisible({ timeout: 20_000 })
+  } else if (emptyOk) {
+    await expect(page.locator('.empty-state').or(page.locator('.product-card').first())).toBeVisible({ timeout: 20_000 })
+  }
+}
+
+export function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
  * Locate a product card by name (+ optional extra text like a price to
- * disambiguate duplicates, e.g. the two "Classic Cookie" products).
+ * disambiguate duplicates, e.g. two same-named products).
  */
 export function productCard(page, name, extraText) {
   let card = page.locator('.product-card').filter({ hasText: name })

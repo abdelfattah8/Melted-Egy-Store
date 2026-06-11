@@ -31,7 +31,10 @@ export default function ProductCard({ product }) {
   const inCart        = cartItems.filter(i => i.id === product.id).reduce((s, i) => s + i.quantity, 0)
 
   const catIcon   = CAT_ICONS[product.category] || faUtensils
-  const hasExtras = !product.type && (product.extraIds?.length > 0)
+  // Bites ALWAYS go through the options modal (required flavor choice); plain
+  // products only when they have extras. Boxes have their own flow.
+  const usesOptionsModal = product.type === 'bite' ||
+    (product.type !== 'box' && product.extraIds?.length > 0)
   const flavorNames = (product.flavorIds || [])
     .map(id => allFlavors.find(f => f.id === id))
     .filter(f => f && f.active !== false)
@@ -103,7 +106,12 @@ export default function ProductCard({ product }) {
                 <FontAwesomeIcon icon={faBoxOpen} style={{ fontSize: 11 }} />
                 Gift Box · {LABELS[product.category] || product.category}
               </span>
-            : (LABELS[product.category] || product.category)
+            : product.type === 'bite'
+              ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <FontAwesomeIcon icon={faCookieBite} style={{ fontSize: 11 }} />
+                  Bite · {LABELS[product.category] || product.category}
+                </span>
+              : (LABELS[product.category] || product.category)
           }
         </p>
         <h3 className="product-card-name">{product.name}</h3>
@@ -125,10 +133,18 @@ export default function ProductCard({ product }) {
           ) : (
             <div className="product-card-price">
               {product.type === 'box' || qty === 0 ? activePrice : activePrice * qty} <span>EGP</span>
-              {!product.type && qty > 1 && <span style={{ fontSize: 12, color: 'var(--text-light)', marginRight: 6 }}>({activePrice} × {qty})</span>}
+              {product.type !== 'box' && qty > 1 && <span style={{ fontSize: 12, color: 'var(--text-light)', marginRight: 6 }}>({activePrice} × {qty})</span>}
             </div>
           )}
         </div>
+
+        {/* Bite piece count hint */}
+        {product.type === 'bite' && product.pieceCount > 0 && (
+          <p style={{ fontSize: 12, color: 'var(--text-light)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <FontAwesomeIcon icon={faCookieBite} style={{ fontSize: 11 }} />
+            {product.pieceCount} piece{product.pieceCount > 1 ? 's' : ''}
+          </p>
+        )}
 
         {/* Box size hint */}
         {product.type === 'box' && product.boxSize && (
@@ -153,7 +169,7 @@ export default function ProductCard({ product }) {
           >
             <FontAwesomeIcon icon={faBoxOpen} style={{ fontSize: 14 }} /> Build Your Box
           </button>
-        ) : hasExtras ? (
+        ) : usesOptionsModal ? (
           <button
             className="add-to-cart-btn"
             onClick={() => setExtrasModal(true)}

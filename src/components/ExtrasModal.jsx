@@ -1,20 +1,24 @@
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faXmark, faMinus, faPlus, faCartShopping, faJarWheat, faCheck } from '@fortawesome/free-solid-svg-icons'
+import { faXmark, faMinus, faPlus, faCartShopping, faJarWheat, faCheck, faCircleCheck, faIceCream } from '@fortawesome/free-solid-svg-icons'
 import { useCart } from '../context/CartContext.jsx'
-import { useExtras } from '../hooks/useCatalog.js'
+import { useExtras, useFlavors } from '../hooks/useCatalog.js'
 import toast from 'react-hot-toast'
 
 /**
- * Quantity + extras picker shown when a product has admin-assigned extras.
- * Total = (base price + selected extras) × quantity, updated live.
+ * Quantity + options picker. Used for:
+ * - plain products with admin-assigned extras (extras checkboxes), and
+ * - bites (REQUIRED single-flavor choice from the flavors list, plus extras
+ *   checkboxes when assigned). Total = (base + selected extras) × quantity.
  */
 export default function ExtrasModal({ product, onClose }) {
   const { addToCartWithExtras, cartItems } = useCart()
-  const allExtras = useExtras()
+  const allExtras  = useExtras()
+  const allFlavors = useFlavors()
   const [qty, setQty]           = useState(1)
   const [selected, setSelected] = useState({}) // extraId -> true
+  const [flavorId, setFlavorId] = useState(null)
 
   const basePrice = product.onSale && product.salePrice && product.salePrice < product.price
     ? product.salePrice
@@ -26,7 +30,18 @@ export default function ExtrasModal({ product, onClose }) {
     [allExtras, product.extraIds]
   )
 
-  // Stock cap across all cart lines of this product (plain + each extras combo)
+  // Bites: the customer must pick exactly ONE flavor from the managed list.
+  // If the admin hasn't defined any active flavors yet, the bite stays sellable
+  // without a flavor rather than being blocked.
+  const isBite        = product.type === 'bite'
+  const activeFlavors = useMemo(
+    () => (isBite ? allFlavors.filter(f => f.active !== false) : []),
+    [isBite, allFlavors]
+  )
+  const needsFlavor  = isBite && activeFlavors.length > 0
+  const flavorChosen = !needsFlavor || !!flavorId
+
+  // Stock cap across all cart lines of this product (every flavor/extras combo)
   const inCart = cartItems.filter(i => i.id === product.id).reduce((s, i) => s + i.quantity, 0)
   const maxQty = typeof product.stock === 'number' && product.stock > 0 ? product.stock : 100
   const canAddMore = Math.max(0, maxQty - inCart)
@@ -34,6 +49,7 @@ export default function ExtrasModal({ product, onClose }) {
   const chosen     = available.filter(x => selected[x.id])
   const extrasSum  = chosen.reduce((s, x) => s + x.price, 0)
   const total      = (basePrice + extrasSum) * qty
+  const canAdd     = canAddMore > 0 && flavorChosen
 
   function toggle(id) { setSelected(prev => ({ ...prev, [id]: !prev[id] })) }
   function dec() { setQty(q => Math.max(1, q - 1)) }
@@ -43,10 +59,20 @@ export default function ExtrasModal({ product, onClose }) {
   }
 
   function handleAdd() {
+    if (!flavorChosen) { toast.error('Please pick a flavor first'); return }
     if (canAddMore === 0) { toast.error(`Only ${maxQty} available`); return }
-    const toAdd = Math.min(qty, canAddMore)
-    addToCartWithExtras({ ...product, price: basePrice }, toAdd, chosen.map(x => ({ id: x.id, name: x.name, price: x.price })))
-    toast.success(`${toAdd} × ${product.name}${chosen.length ? ` + ${chosen.map(x => x.name).join(', ')}` : ''} added to cart`)
+    const toAdd  = Math.min(qty, canAddMore)
+    const flavor = needsFlavor ? activeFlavors.find(f => f.id === flavorId) : null
+    addToCartWithExtras(
+      { ...product, price: basePrice },
+      toAdd,
+      chosen.map(x => ({ id: x.id, name: x.name, price: x.price })),
+      flavor ? { id: flavor.id, name: flavor.name } : null
+    )
+    toast.success(
+      `${toAdd} × ${product.name}${flavor ? ` (${flavor.name})` : ''}` +
+      `${chosen.length ? ` + ${chosen.map(x => x.name).join(', ')}` : ''} added to cart`
+    )
     onClose()
   }
 
@@ -60,16 +86,20 @@ export default function ExtrasModal({ product, onClose }) {
             <FontAwesomeIcon icon={faXmark} />
           </button>
           <div className="bbm-title-row">
-            <FontAwesomeIcon icon={faJarWheat} className="bbm-icon" />
+            <FontAwesomeIcon icon={isBite ? faIceCream : faJarWheat} className="bbm-icon" />
             <h3 className="bbm-title">{product.name}</h3>
           </div>
-          <p className="bbm-instruction">Pick your quantity{available.length > 0 ? ' and any extras you’d like' : ''}</p>
+          <p className="bbm-instruction">
+            {needsFlavor
+              ? `Pick your flavor and quantity${available.length > 0 ? ' — extras optional' : ''}`
+              : `Pick your quantity${available.length > 0 ? ' and any extras you’d like' : ''}`}
+          </p>
         </div>
 
         {/* ── BODY ── */}
         <div className="bbm-body">
           {/* Quantity stepper */}
-          <div className="exm-row" style={{ marginBottom: available.length ? 18 : 0 }}>
+          <div className="exm-row" style={{ marginBottom: (needsFlavor || available.length) ? 18 : 0 }}>
             <span className="exm-row-name">Quantity</span>
             <div className="bbm-stepper">
               <button className="bbm-step-btn" onClick={dec} disabled={qty <= 1} aria-label="Decrease">
@@ -81,6 +111,26 @@ export default function ExtrasModal({ product, onClose }) {
               </button>
             </div>
           </div>
+
+          {/* Flavor — exactly one, required for bites */}
+          {needsFlavor && (
+            <>
+              <p className="exm-section-label">Flavor <span>(pick exactly one)</span></p>
+              <div className="exm-list" style={{ marginBottom: available.length ? 18 : 0 }}>
+                {activeFlavors.map(f => {
+                  const isOn = flavorId === f.id
+                  return (
+                    <button key={f.id} type="button" className={`exm-extra${isOn ? ' exm-extra-selected' : ''}`} onClick={() => setFlavorId(f.id)}>
+                      <span className={`bbm-radio${isOn ? ' bbm-radio-selected' : ''}`}>
+                        {isOn && <FontAwesomeIcon icon={faCircleCheck} style={{ fontSize: 13 }} />}
+                      </span>
+                      <span className="exm-extra-name">{f.name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
 
           {/* Extras checkboxes */}
           {available.length > 0 && (
@@ -114,8 +164,10 @@ export default function ExtrasModal({ product, onClose }) {
           </div>
           <div className="bbm-footer-actions">
             <button className="btn btn-outline btn-sm" onClick={onClose}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleAdd} disabled={canAddMore === 0} style={{ opacity: canAddMore === 0 ? 0.55 : 1 }}>
-              <FontAwesomeIcon icon={faCartShopping} style={{ fontSize: 14 }} /> Add {qty > 1 ? `${qty} items` : 'item'} — {total} EGP
+            <button className="btn btn-primary" onClick={handleAdd} disabled={!canAdd} style={{ opacity: canAdd ? 1 : 0.55 }}>
+              {!flavorChosen
+                ? 'Pick a flavor'
+                : <><FontAwesomeIcon icon={faCartShopping} style={{ fontSize: 14 }} /> Add {qty > 1 ? `${qty} items` : 'item'} — {total} EGP</>}
             </button>
           </div>
         </div>

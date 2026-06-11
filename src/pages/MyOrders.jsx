@@ -118,6 +118,11 @@ export default function MyOrders() {
                       {item.boxChoices.map(c => c.quantity > 1 ? `${c.name} ×${c.quantity}` : c.name).join(' · ')}
                     </div>
                   )}
+                  {item.flavor && (
+                    <div style={{ fontSize: 12, color: 'var(--brown)', marginTop: 3, fontWeight: 600 }}>
+                      Flavor: {item.flavor.name}
+                    </div>
+                  )}
                   {item.extras?.length > 0 && (
                     <div style={{ fontSize: 12, color: 'var(--brown)', marginTop: 3 }}>
                       {item.extras.map(e => `+ ${e.name} (+${e.price} EGP)`).join(' · ')}

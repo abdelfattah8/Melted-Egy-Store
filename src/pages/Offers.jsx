@@ -13,7 +13,7 @@ import toast from 'react-hot-toast'
 const TYPE_LABEL = {
   buy1get1:      { label: 'Buy 1 Get 1 Free', color: '#5B3121', bg: '#F6CDD0' },
   buy2get1:      { label: 'Buy 2 Get 1 Free', color: '#5B3121', bg: '#F6CDD0' },
-  box_gift:      { label: 'Buy Box, Get Bite Free', color: '#7B1FA2', bg: '#F3E5F5' },
+  box_gift:      { label: 'Buy Box, Get Item Free', color: '#7B1FA2', bg: '#F3E5F5' },
   free_delivery: { label: 'Free Delivery',     color: '#2E7D32', bg: '#E8F5E9' },
   custom:        { label: 'Special Discount',  color: '#1565C0', bg: '#E3F2FD' },
 }

@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCookieBite, faLayerGroup, faCakeCandles, faMugHot, faWandMagicSparkles, faMagnifyingGlass, faBoxOpen } from '@fortawesome/free-solid-svg-icons'
+import { faCookieBite, faLayerGroup, faCakeCandles, faMugHot, faWandMagicSparkles, faMagnifyingGlass, faBoxOpen, faUtensils } from '@fortawesome/free-solid-svg-icons'
 import { db } from '../firebase/config.jsx'
 import ProductCard from '../components/ProductCard.jsx'
 import SearchBar from '../components/SearchBar.jsx'
@@ -13,10 +13,11 @@ import SEO from '../components/SEO.jsx'
 const BARE_CATS = ['cookies', 'brownies', 'cheesecake', 'tiramisu']
 
 const MAIN_TABS = [
-  { key: 'all',   label: 'All',   icon: null },
-  { key: 'new',   label: 'New',   icon: faWandMagicSparkles },
-  { key: 'bites', label: 'Bites', icon: faCookieBite },
-  { key: 'boxes', label: 'Boxes', icon: faBoxOpen },
+  { key: 'all',      label: 'All',      icon: null },
+  { key: 'new',      label: 'New',      icon: faWandMagicSparkles },
+  { key: 'products', label: 'Products', icon: faUtensils },
+  { key: 'bites',    label: 'Bites',    icon: faCookieBite },
+  { key: 'boxes',    label: 'Boxes',    icon: faBoxOpen },
 ]
 
 const SUB_CATS = [
@@ -26,28 +27,34 @@ const SUB_CATS = [
   { key: 'tiramisu',   label: 'Tiramisu',   icon: faMugHot },
 ]
 
+// Bites (type:'bite') only come in these two categories
+const BITE_SUB_CATS = SUB_CATS.filter(s => s.key === 'cookies' || s.key === 'brownies')
+
+const MAIN_LABEL = { products: 'Products', bites: 'Bites', boxes: 'Boxes' }
+
 export default function Shop() {
   const [products,    setProducts]    = useState([])
   const [loading,     setLoading]     = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // Normalise: bare ?cat=cookies (from Home links) → bites-cookies
+  // Normalise: bare ?cat=cookies (from Home links) → products-cookies
   const raw            = searchParams.get('cat') || 'all'
-  const activeCategory = BARE_CATS.includes(raw) ? `bites-${raw}` : raw
+  const activeCategory = BARE_CATS.includes(raw) ? `products-${raw}` : raw
 
-  const mainTab    = activeCategory.startsWith('bites') ? 'bites'
-                   : activeCategory.startsWith('boxes') ? 'boxes'
+  const mainTab    = activeCategory.startsWith('products') ? 'products'
+                   : activeCategory.startsWith('bites')    ? 'bites'
+                   : activeCategory.startsWith('boxes')    ? 'boxes'
                    : activeCategory                          // 'all' | 'new'
   const subCat     = activeCategory.includes('-') ? activeCategory.split('-')[1] : null
-  const showSubRow = mainTab === 'bites' || mainTab === 'boxes'
+  const showSubRow = mainTab === 'products' || mainTab === 'bites' || mainTab === 'boxes'
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       try {
         // All Firestore queries use only the same index paths already in use.
-        // Type discrimination (bites vs boxes) is applied client-side.
+        // Type discrimination (products vs bites vs boxes) is applied client-side.
         let q
         if (activeCategory === 'all') {
           q = query(collection(db, 'products'), where('available', '==', true))
@@ -62,8 +69,11 @@ export default function Shop() {
         const snap = await getDocs(q)
         let results = snap.docs.map(d => ({ id: d.id, ...d.data() }))
 
-        if (mainTab === 'bites') results = results.filter(p => p.type !== 'box')
-        if (mainTab === 'boxes') results = results.filter(p => p.type === 'box')
+        // Products tab includes boxes (under their matching sub-category) — only
+        // bites are excluded. Boxes also keep their own dedicated tab.
+        if (mainTab === 'products') results = results.filter(p => p.type !== 'bite')
+        if (mainTab === 'bites')    results = results.filter(p => p.type === 'bite')
+        if (mainTab === 'boxes')    results = results.filter(p => p.type === 'box')
 
         setProducts(results)
       } catch (err) { console.error(err) }
@@ -88,10 +98,11 @@ export default function Shop() {
   }
 
   const seoTitle = (() => {
-    if (activeCategory === 'all')   return 'Shop — Cookies, Brownies & Desserts'
-    if (activeCategory === 'new')   return 'New Items — Melted Egypt'
-    if (activeCategory === 'bites') return 'Bites — Individual Treats'
-    if (activeCategory === 'boxes') return 'Boxes — Gift Boxes'
+    if (activeCategory === 'all')      return 'Shop — Cookies, Brownies & Desserts'
+    if (activeCategory === 'new')      return 'New Items — Melted Egypt'
+    if (activeCategory === 'products') return 'Products — Individual Treats'
+    if (activeCategory === 'bites')    return 'Bites — Cookie & Brownie Bites'
+    if (activeCategory === 'boxes')    return 'Boxes — Gift Boxes'
     const label = subCat ? subCat.charAt(0).toUpperCase() + subCat.slice(1) : ''
     return mainTab === 'boxes' ? `${label} Boxes — Melted Egypt` : `${label} — Melted Egypt`
   })()
@@ -113,7 +124,7 @@ export default function Shop() {
         <SearchBar onSearch={setSearchQuery} placeholder="Search cookies, brownies, cheesecake..." />
       </div>
 
-      {/* ── Main tabs: All | New | Bites | Boxes ── */}
+      {/* ── Main tabs: All | New | Products | Bites | Boxes ── */}
       <div className="category-tabs" style={{ marginBottom: showSubRow ? 8 : 44 }}>
         {MAIN_TABS.map(c => (
           <button
@@ -128,7 +139,7 @@ export default function Shop() {
         ))}
       </div>
 
-      {/* ── Sub-category row (Bites or Boxes selected) ── */}
+      {/* ── Sub-category row (Products, Bites or Boxes selected) ── */}
       {showSubRow && (
         <div
           className="category-tabs"
@@ -144,9 +155,9 @@ export default function Shop() {
             onClick={() => setTab(mainTab)}
             style={{ fontSize: 13, padding: '8px 18px' }}
           >
-            All {mainTab === 'bites' ? 'Bites' : 'Boxes'}
+            All {MAIN_LABEL[mainTab]}
           </button>
-          {SUB_CATS.map(s => (
+          {(mainTab === 'bites' ? BITE_SUB_CATS : SUB_CATS).map(s => (
             <button
               key={s.key}
               className={`category-tab ${subCat === s.key ? 'active' : ''}`}

@@ -19,7 +19,9 @@
       "PowerShell(npm run *)",
       "PowerShell(Select-String -Path \"test-results\\\\02-browsing-shop-tabs-All-New-Bites-Boxes-with-sub-filters\\\\error-context.md\" -Pattern \"NEW|product-card|heading|Louts|Cookie|Tiramisu|Brownie\" | Select-Object -First 40 | ForEach-Object { $_.Line.Trim\\(\\) })",
       "PowerShell(npx playwright test e2e/02-browsing.spec.js --repeat-each=3)",
-      "PowerShell(\\(Get-Content e2e\\\\.run-state.json | ConvertFrom-Json\\) | Select-Object email -ExpandProperty orders | Format-Table)"
+      "PowerShell(\\(Get-Content e2e\\\\.run-state.json | ConvertFrom-Json\\) | Select-Object email -ExpandProperty orders | Format-Table)",
+      "PowerShell(Select-String -Path \"test-results\\\\03-cart-bites-add-bites-update-quantity-remove-item\\\\error-context.md\" -Pattern \"text:|button|img|heading|alert\" | Select-Object -First 50 | ForEach-Object { $_.Line.Trim\\(\\) })",
+      "PowerShell(node e2e/firestore-recon.mjs)"
     ]
   }
 }

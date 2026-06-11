@@ -51,6 +51,7 @@ Security rules are in `firestore.rules` — paste into the Firebase console to d
 ### Key Patterns
 
 - **Product categories:** `cookies`, `brownies`, `cheesecake`, `tiramisu`. The `Shop` page filters via `?cat=<category>` query param. `isNew: true` on a product surfaces it on `/new-items`.
+- **Item types (all in `products` collection):** plain products (`type` undefined, UI label "Products"), `type: 'box'` (customer picks flavors via BoxBuilderModal), `type: 'bite'` (cookies/brownies only, fixed `pieceCount`, optional `contents` limited to same-category products). Bites have NO admin-assigned flavors — the customer picks exactly ONE flavor (from the `flavors` collection) in ExtrasModal when adding to cart; the choice is stored as `flavor: {id, name}` on the cart line and order item. Box flavor pickers draw from plain products only (boxes and bites excluded). The shop "Products" tab shows plain products AND boxes; "Bites" and "Boxes" tabs filter by type.
 - **Order status flow:** `pending_payment` → `pending_approval` or `confirmed` → `preparing` → `delivered` / `cancelled`. Admin drives transitions from `/admin/orders`.
 - **Payment paths:** Cash on delivery (may require deposit transfer verification) or Visa via an external gateway (`/visa-payment`).
 - **Admin layout:** `/admin/*` routes render inside `AdminLayout.jsx` which provides the sidebar. Each admin sub-page fetches its own Firestore data independently.

@@ -89,11 +89,15 @@ export function CartProvider({ children }) {
   }
   function clearCart() { setCartItems([]) }
 
-  // Add a product together with its chosen extras. Each distinct extras combo is its
-  // own cart line (cartKey), so "Cookie + Lotus" and a plain "Cookie" don't merge.
-  function addToCartWithExtras(product, qty, extras = []) {
-    const sorted  = [...extras].sort((a, b) => a.id.localeCompare(b.id))
-    const cartKey = sorted.length ? `${product.id}::${sorted.map(e => e.id).join('+')}` : product.id
+  // Add a product together with its chosen extras (and, for bites, the chosen
+  // flavor). Each distinct flavor/extras combo is its own cart line (cartKey),
+  // so "Cookie + Lotus" and a plain "Cookie" don't merge.
+  function addToCartWithExtras(product, qty, extras = [], flavor = null) {
+    const sorted   = [...extras].sort((a, b) => a.id.localeCompare(b.id))
+    const keyParts = [product.id]
+    if (flavor)        keyParts.push(`f:${flavor.id}`)
+    if (sorted.length) keyParts.push(sorted.map(e => e.id).join('+'))
+    const cartKey = keyParts.length > 1 ? keyParts.join('::') : product.id
     setCartItems(prev => {
       const exists = prev.find(i => cartLineKey(i) === cartKey)
       if (exists) {
@@ -103,10 +107,9 @@ export function CartProvider({ children }) {
       }
       const max = typeof product.stock === 'number' && product.stock > 0 ? product.stock : 100
       const line = { ...product, quantity: Math.min(qty, max) }
-      if (sorted.length) {
-        line.cartKey = cartKey
-        line.extras  = sorted.map(e => ({ id: e.id, name: e.name, price: e.price }))
-      }
+      if (cartKey !== product.id) line.cartKey = cartKey
+      if (sorted.length) line.extras = sorted.map(e => ({ id: e.id, name: e.name, price: e.price }))
+      if (flavor)        line.flavor = { id: flavor.id, name: flavor.name }
       return [...prev, line]
     })
   }

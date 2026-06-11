@@ -1,66 +1,68 @@
 import { test, expect } from '@playwright/test'
 import { clearCartStorage } from './helpers.js'
+import { loadCatalog, countingBox, singleFlavorBox, effectivePrice } from './fixtures.js'
 
 /** CART — BOXES: multi-flavor box builder; single-flavor box if one exists. */
 
-test('build a multi-flavor cookie box (piece counter)', async ({ page }) => {
+test('build a multi-flavor box (piece counter)', async ({ page }) => {
+  const catalog = await loadCatalog()
+  const box = countingBox(catalog)
+  test.skip(!box, 'No cookies/brownies box with selectable flavors in the live catalog')
+  const size  = box.boxSize
+  const price = effectivePrice(box)
+
   await page.goto('/shop?cat=boxes')
   await clearCartStorage(page)
   await expect(page.locator('.product-card').first()).toBeVisible({ timeout: 20_000 })
 
-  const boxCard = page.locator('.product-card').filter({ hasText: '6 Picese Of Cookies' })
+  const boxCard = page.locator('.product-card').filter({ hasText: box.name })
   await boxCard.getByRole('button', { name: 'Build Your Box' }).click()
 
   const modal = page.locator('.box-builder-modal')
   await expect(modal).toBeVisible()
-  await expect(modal).toContainText('Choose exactly 6 pieces')
+  await expect(modal).toContainText(`Choose exactly ${size} pieces`)
 
-  await test.step('select 6 pieces and watch the progress counter', async () => {
+  await test.step(`select ${size} pieces and watch the progress counter`, async () => {
     const firstFlavorPlus = modal.locator('.bbm-card').first().locator('.bbm-step-plus')
-    for (let i = 0; i < 4; i++) await firstFlavorPlus.click()
-    await expect(modal.locator('.bbm-progress-count')).toHaveText('4 / 6 pieces')
-    await expect(modal).toContainText('Select 2 more')
-    // Spread remaining 2 over a second flavor
-    const secondFlavorPlus = modal.locator('.bbm-card').nth(1).locator('.bbm-step-plus')
-    await secondFlavorPlus.click()
-    await secondFlavorPlus.click()
-    await expect(modal.locator('.bbm-progress-count')).toHaveText('6 / 6 pieces')
+    for (let i = 0; i < size - 1; i++) await firstFlavorPlus.click()
+    await expect(modal.locator('.bbm-progress-count')).toHaveText(`${size - 1} / ${size} pieces`)
+    await expect(modal).toContainText('Select 1 more')
+    // Last piece goes on a second flavor when one exists
+    const flavorCards = modal.locator('.bbm-card')
+    const lastPlus = (await flavorCards.count()) > 1
+      ? flavorCards.nth(1).locator('.bbm-step-plus')
+      : firstFlavorPlus
+    await lastPlus.click()
+    await expect(modal.locator('.bbm-progress-count')).toHaveText(`${size} / ${size} pieces`)
     await expect(modal).toContainText('Box complete!')
     // Cannot exceed the box size
-    await expect(modal.locator('.bbm-card').nth(2).locator('.bbm-step-plus')).toBeDisabled()
+    await expect(modal.locator('.bbm-card').first().locator('.bbm-step-plus')).toBeDisabled()
   })
 
-  await test.step('box modal shows the SALE price (500 → 480)', async () => {
-    // Regression guard: boxes must respect an active sale like bites do
-    await expect(modal.locator('.bbm-price')).toContainText('480')
+  await test.step('modal shows the effective (sale-aware) price', async () => {
+    // Regression guard: boxes must respect an active sale like products do
+    await expect(modal.locator('.bbm-price')).toContainText(String(price))
   })
 
   await test.step('add the completed box to cart', async () => {
     await modal.getByRole('button', { name: 'Add to Cart' }).click()
-    await expect(page.getByText('6 Picese Of Cookies added to cart!')).toBeVisible()
+    await expect(page.getByText(`${box.name} added to cart!`)).toBeVisible()
     await page.goto('/checkout')
-    const line = page.locator('.summary-item').filter({ hasText: '6 Picese Of Cookies' })
+    const line = page.locator('.summary-item').filter({ hasText: box.name })
     await expect(line).toContainText('BOX')
-    await expect(line).toContainText('480 EGP') // sale price, not the original 500
+    await expect(line).toContainText(`${price} EGP`)
   })
 })
 
 test('single-flavor box (cheesecake/tiramisu behavior)', async ({ page }) => {
+  const catalog = await loadCatalog()
+  const box = singleFlavorBox(catalog)
+  test.skip(!box, 'No cheesecake/tiramisu box exists in the catalog — needs manual check once one is added')
+
   await page.goto('/shop?cat=boxes')
   await clearCartStorage(page)
-  await page.waitForLoadState('networkidle')
-
-  // Single-flavor behavior only applies to cheesecake/tiramisu boxes. None exist
-  // in the production catalog right now — skip with a note if that's still true.
-  let found = null
-  for (const cat of ['Cheesecake', 'Tiramisu']) {
-    await page.getByRole('button', { name: cat, exact: true }).click()
-    await page.waitForTimeout(1500)
-    if (await page.locator('.product-card').count() > 0) { found = cat; break }
-  }
-  test.skip(!found, 'No cheesecake/tiramisu box exists in the catalog — needs manual check once one is added')
-
-  const boxCard = page.locator('.product-card').first()
+  const boxCard = page.locator('.product-card').filter({ hasText: box.name })
+  await expect(boxCard).toBeVisible({ timeout: 20_000 })
   await boxCard.getByRole('button', { name: 'Build Your Box' }).click()
   const modal = page.locator('.box-builder-modal')
   await expect(modal).toBeVisible()

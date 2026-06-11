@@ -130,7 +130,7 @@ export default function OfferPickerModal({ offer, onConfirm, onCancel }) {
   const gridItems  = isBoxGift && step === 'gift' ? giftProducts : products
   const headerHint = isBoxGift
     ? (step === 'gift'
-        ? 'Box added! Now pick ONE bite — it’s on us, completely free'
+        ? 'Box added! Now pick ONE item — it’s on us, completely free'
         : 'Step 1 — choose your box, then pick its flavors')
     : canConfirm
       ? `All ${required} items selected — cheapest will be free`
@@ -225,7 +225,7 @@ export default function OfferPickerModal({ offer, onConfirm, onCancel }) {
           {(!isBoxGift || step === 'gift') && (
             <button onClick={handleConfirm} disabled={!canConfirm} style={{ flex: 2, padding: '12px', borderRadius: 'var(--radius-sm)', border: 'none', background: canConfirm ? 'var(--brown)' : 'var(--border)', color: canConfirm ? 'white' : 'var(--text-light)', fontWeight: 700, fontSize: 14, cursor: canConfirm ? 'pointer' : 'not-allowed', transition: 'var(--transition)', fontFamily: 'Poppins,sans-serif' }}>
               {isBoxGift
-                ? (canConfirm ? 'Confirm Free Gift' : 'Pick your free bite')
+                ? (canConfirm ? 'Confirm Free Gift' : 'Pick your free item')
                 : (canConfirm ? 'Confirm Selection' : `Select ${remaining} more item${remaining !== 1 ? 's' : ''}`)}
             </button>
           )}

@@ -212,12 +212,27 @@ export default function AdminOrders() {
             {viewing.items?.map((item, i) => (
               <div key={i} style={{ padding: '9px 0', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>{item.name} × {item.quantity}</span>
+                  <span>
+                    {item.type === 'bite' && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: 'white', background: 'var(--brown)', borderRadius: 4, padding: '1px 6px', marginRight: 6, verticalAlign: 'middle' }}>BITE</span>
+                    )}
+                    {item.name} × {item.quantity}
+                    {item.type === 'bite' && item.pieceCount && (
+                      <span style={{ fontSize: 11, color: 'var(--text-light)', marginLeft: 6 }}>({item.pieceCount} pcs each)</span>
+                    )}
+                  </span>
                   <strong>{item.price * item.quantity} EGP</strong>
                 </div>
                 {item.type === 'box' && item.boxChoices?.length > 0 && (
                   <div style={{ fontSize: 12, color: 'var(--text-light)', marginTop: 4 }}>
                     Box flavors: {item.boxChoices.map(c => c.quantity > 1 ? `${c.name} ×${c.quantity}` : c.name).join(' · ')}
+                  </div>
+                )}
+                {item.flavor && (
+                  <div style={{ marginTop: 5 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--brown-dark)', background: 'var(--cream)', border: '1px solid var(--border)', borderRadius: 50, padding: '2px 10px' }}>
+                      Flavor: {item.flavor.name}
+                    </span>
                   </div>
                 )}
                 {item.extras?.length > 0 && (

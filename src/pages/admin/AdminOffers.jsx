@@ -325,24 +325,24 @@ export default function AdminOffers() {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Free Gift Bites (optional)</label>
+                  <label className="form-label">Free Gift Items (optional)</label>
                   <p style={{ fontSize: 12, color: 'var(--text-light)', margin: '0 0 10px' }}>
-                    Bites the customer can choose as their free gift. Leave all unchecked to allow any bite.
+                    Items the customer can choose as their free gift. Leave all unchecked to allow any item.
                   </p>
                   <ProductChecklist
                     items={products.filter(p => p.type !== 'box')}
                     selectedIds={form.giftProductIds}
                     onToggle={toggleId('giftProductIds')}
-                    emptyText="No available bites"
+                    emptyText="No available items"
                   />
                 </div>
               </>
             ) : (
               <div className="form-group">
-                <label className="form-label">{isBogo ? 'Bites in this Offer (optional)' : 'Products in this Offer (optional)'}</label>
+                <label className="form-label">{isBogo ? 'Items in this Offer (optional)' : 'Products in this Offer (optional)'}</label>
                 <p style={{ fontSize: 12, color: 'var(--text-light)', margin: '0 0 10px' }}>
                   {isBogo
-                    ? 'Buy-X-Get-1 offers work with bites only — boxes are excluded. Leave all unchecked to apply to every bite.'
+                    ? 'Buy-X-Get-1 offers exclude boxes. Leave all unchecked to apply to every item.'
                     : 'Leave all unchecked to apply to every product.'}
                 </p>
                 <ProductChecklist

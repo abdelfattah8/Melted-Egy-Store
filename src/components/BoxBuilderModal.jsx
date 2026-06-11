@@ -41,8 +41,9 @@ export default function BoxBuilderModal({ box, onClose, onAdded }) {
             where('category', '==', box.category),
             where('available', '==', true))
         )
+        // Box flavors come from plain products only — boxes and bites are excluded
         setFlavors(
-          snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.type !== 'box')
+          snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(p => p.type !== 'box' && p.type !== 'bite')
         )
       } catch (err) { console.error('Failed to load flavors', err) }
       setLoading(false)

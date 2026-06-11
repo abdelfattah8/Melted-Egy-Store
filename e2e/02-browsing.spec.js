@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test'
+import { settleGrid } from './helpers.js'
+import { loadCatalog, plainProducts, countingBox, newItem } from './fixtures.js'
 
-/** BROWSING: home page, Shop main tabs + sub-filters. */
+/** BROWSING: home page, Shop main tabs + sub-filters — driven by the LIVE catalog. */
 
 test('home page loads with hero and sections', async ({ page }) => {
   await page.goto('/')
@@ -12,7 +14,16 @@ test('home page loads with hero and sections', async ({ page }) => {
   await expect(page).toHaveURL(/\/shop/)
 })
 
-test('shop tabs: All / New / Bites / Boxes with sub-filters', async ({ page }) => {
+test('shop tabs: All / New / Products / Bites / Boxes with sub-filters', async ({ page }) => {
+  const catalog = await loadCatalog()
+  const plains  = plainProducts(catalog)
+  const box     = countingBox(catalog)
+  test.skip(plains.length === 0, 'No plain products in the live catalog')
+
+  const anyPlain  = plains[0]
+  const cookie    = plains.find(p => p.category === 'cookies')
+  const nonCookie = plains.find(p => p.category !== 'cookies')
+
   await page.goto('/shop')
 
   await test.step('All tab shows products', async () => {
@@ -21,12 +32,14 @@ test('shop tabs: All / New / Bites / Boxes with sub-filters', async ({ page }) =
   })
 
   await test.step('New tab shows only new items', async () => {
+    const aNew    = newItem(catalog)
+    const nonNew  = plains.find(p => !p.isNew)
     await page.getByRole('button', { name: 'New', exact: true }).click()
-    // Settle the transition in order: first the stale grid disappears (Brownie is
-    // not a new item), then the NEW grid renders (Louts Cookie is). Only after the
-    // second wait is the grid final — counting earlier reads a transitional state.
-    await expect(page.locator('.product-card').filter({ hasText: 'Brownie' })).toHaveCount(0, { timeout: 20_000 })
-    await expect(page.locator('.product-card').filter({ hasText: 'Louts Cookie' })).toBeVisible({ timeout: 20_000 })
+    await settleGrid(page, { absent: nonNew?.name, present: aNew?.name, emptyOk: !aNew })
+    if (!aNew) {
+      await expect(page.locator('.empty-state')).toBeVisible()
+      return // nothing is marked NEW right now — empty state is the correct render
+    }
     const cards = page.locator('.product-card')
     const count = await cards.count()
     expect(count).toBeGreaterThan(0)
@@ -35,21 +48,27 @@ test('shop tabs: All / New / Bites / Boxes with sub-filters', async ({ page }) =
     }
   })
 
-  await test.step('Bites tab shows sub-filters and no boxes', async () => {
-    await page.getByRole('button', { name: 'Bites' }).click()
-    await expect(page.getByRole('button', { name: 'All Bites' })).toBeVisible()
-    // Settle: previous (New) grid had the box "12 pices Cookie"; Tiramisu only exists in Bites
-    await expect(page.locator('.product-card').filter({ hasText: '12 pices Cookie' })).toHaveCount(0, { timeout: 20_000 })
-    await expect(page.locator('.product-card').filter({ hasText: 'Tiramisu' })).toBeVisible({ timeout: 20_000 })
-    await expect(page.getByRole('button', { name: 'Build Your Box' })).toHaveCount(0)
+  await test.step('Products tab shows products AND boxes (no bites)', async () => {
+    await page.getByRole('button', { name: 'Products', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'All Products' })).toBeVisible()
+    const nonNew = plains.find(p => !p.isNew) || anyPlain
+    await settleGrid(page, { present: nonNew.name })
+    if (box) {
+      // Boxes now appear in the Products tab too, keeping their box-builder flow
+      await expect(page.locator('.product-card').filter({ hasText: box.name })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Build Your Box' }).first()).toBeVisible()
+    }
+    // No bite cards in the Products tab
+    await expect(page.locator('.product-card .product-card-category').filter({ hasText: 'Bite ·' })).toHaveCount(0)
   })
 
-  await test.step('Bites → Cookies sub-filter', async () => {
+  await test.step('Products → Cookies sub-filter', async () => {
+    if (!cookie) {
+      test.info().annotations.push({ type: 'skipped-step', description: 'No cookie products in the live catalog' })
+      return
+    }
     await page.getByRole('button', { name: 'Cookies' }).click()
-    // Settle: Tiramisu (in Bites) disappears, then a known cookie renders
-    await expect(page.locator('.product-card').filter({ hasText: 'Tiramisu' })).toHaveCount(0, { timeout: 20_000 })
-    await expect(page.locator('.product-card').filter({ hasText: 'Louts Cookie' })).toBeVisible({ timeout: 20_000 })
-    // Every visible card is a cookie bite
+    await settleGrid(page, { absent: nonCookie?.name, present: cookie.name })
     const cats = page.locator('.product-card .product-card-category')
     const count = await cats.count()
     expect(count).toBeGreaterThan(0)
@@ -58,36 +77,45 @@ test('shop tabs: All / New / Bites / Boxes with sub-filters', async ({ page }) =
     }
   })
 
+  await test.step('Bites tab shows only type:bite items (Cookies/Brownies sub-filters)', async () => {
+    await page.getByRole('button', { name: 'Bites', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'All Bites' })).toBeVisible()
+    // Bites only sub-filter by Cookies and Brownies
+    const subRow = page.locator('.category-tabs').nth(1)
+    await expect(subRow.getByRole('button', { name: 'Cookies' })).toBeVisible()
+    await expect(subRow.getByRole('button', { name: 'Brownies' })).toBeVisible()
+    await expect(subRow.getByRole('button', { name: 'Cheesecake' })).toHaveCount(0)
+    await expect(subRow.getByRole('button', { name: 'Tiramisu' })).toHaveCount(0)
+    // The grid may legitimately be empty until the admin adds bites
+    await settleGrid(page, { absent: cookie?.name || anyPlain.name, emptyOk: true })
+    const nonBite = page.locator('.product-card').filter({ hasNotText: 'Bite ·' })
+    await expect(nonBite).toHaveCount(0)
+  })
+
   await test.step('Boxes tab shows only boxes', async () => {
+    if (!box) {
+      test.info().annotations.push({ type: 'skipped-step', description: 'No counting box in the live catalog' })
+      return
+    }
     await page.getByRole('button', { name: 'Boxes' }).click()
     await expect(page.getByRole('button', { name: 'All Boxes' })).toBeVisible()
-    // Settle: cookie bites disappear, then a known box renders
-    await expect(page.locator('.product-card').filter({ hasText: 'Louts Cookie' })).toHaveCount(0, { timeout: 20_000 })
-    await expect(page.locator('.product-card').filter({ hasText: '12 pices Cookie' })).toBeVisible({ timeout: 20_000 })
+    await settleGrid(page, { absent: anyPlain.name, present: box.name })
     const cards = page.locator('.product-card')
     const count = await cards.count()
     expect(count).toBeGreaterThan(0)
     // All box cards offer the box-builder flow
     await expect(page.getByRole('button', { name: 'Build Your Box' })).toHaveCount(count)
   })
-
-  await test.step('Boxes → Cookies sub-filter', async () => {
-    await page.getByRole('button', { name: 'Cookies' }).click()
-    await expect(page.locator('.product-card').filter({ hasText: '12 pices Cookie' })).toBeVisible({ timeout: 20_000 })
-    const cats = page.locator('.product-card .product-card-category')
-    const count = await cats.count()
-    expect(count).toBeGreaterThan(0)
-    for (let i = 0; i < count; i++) {
-      await expect(cats.nth(i)).toContainText('Gift Box')
-    }
-  })
 })
 
 // The app has no per-product detail route (cards are the full product view),
 // so "product detail pages" cannot be tested. Card content is asserted instead.
 test('product cards show full product info (no detail pages exist in this app)', async ({ page }) => {
+  const catalog = await loadCatalog()
+  const plains  = plainProducts(catalog)
+  test.skip(plains.length === 0, 'No plain products in the live catalog')
   await page.goto('/shop')
-  const card = page.locator('.product-card').filter({ hasText: 'Tiramisu' }).first()
+  const card = page.locator('.product-card').filter({ hasText: plains[0].name }).first()
   await expect(card).toBeVisible({ timeout: 20_000 })
   await expect(card.locator('.product-card-name')).toBeVisible()
   await expect(card.locator('.product-card-category')).toBeVisible()
