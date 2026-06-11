@@ -12,11 +12,51 @@ import toast from 'react-hot-toast'
 const OFFER_TYPES = [
   { key: 'buy1get1',      label: 'Buy 1 Get 1 Free' },
   { key: 'buy2get1',      label: 'Buy 2 Get 1 Free' },
+  { key: 'box_gift',      label: 'Buy Box, Get Item Free' },
   { key: 'free_delivery', label: 'Free Delivery' },
   { key: 'custom',        label: 'Custom Discount' },
 ]
 
-const EMPTY = { title: '', type: 'buy1get1', description: '', productIds: [], active: true, discountPercent: '' }
+const EMPTY = { title: '', type: 'buy1get1', description: '', productIds: [], giftProductIds: [], active: true, discountPercent: '' }
+
+/* Checkbox-style product list used by the offer form (plain render helper, no hooks). */
+function ProductChecklist({ items, selectedIds, onToggle, emptyText }) {
+  return (
+    <div style={{ maxHeight: 220, overflowY: 'auto', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {items.length === 0 && (
+        <p style={{ fontSize: 13, color: 'var(--text-light)', textAlign: 'center', padding: 12 }}>{emptyText}</p>
+      )}
+      {items.map(p => {
+        const box      = p.type === 'box'
+        const selected = selectedIds.includes(p.id)
+        return (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => onToggle(p)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8,
+              cursor: 'pointer', textAlign: 'left', width: '100%', fontFamily: 'Poppins,sans-serif',
+              border: `1.5px solid ${selected ? 'var(--brown)' : 'var(--border)'}`,
+              background: selected ? 'var(--cream)' : 'var(--white)',
+            }}
+          >
+            <span style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: `2px solid ${selected ? 'var(--brown)' : 'var(--border)'}`, background: selected ? 'var(--brown)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {selected && <FontAwesomeIcon icon={faCircleCheck} style={{ fontSize: 11, color: 'white' }} />}
+            </span>
+            {p.imageUrl
+              ? <img src={p.imageUrl} alt={p.name} style={{ width: 30, height: 30, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} />
+              : <FontAwesomeIcon icon={box ? faBoxOpen : faCookieBite} style={{ fontSize: 18, color: 'var(--brown-light)', width: 30, flexShrink: 0 }} />
+            }
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--brown-dark)' }}>{p.name}</span>
+            {box && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--brown)', background: 'var(--pink-light)', borderRadius: 4, padding: '2px 6px' }}>BOX</span>}
+            <span style={{ fontSize: 12, color: 'var(--text-light)' }}>{p.price} EGP</span>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function AdminOffers() {
   const [offers,        setOffers]        = useState([])
@@ -51,7 +91,7 @@ export default function AdminOffers() {
   function openNew() { setEditing(null); setForm(EMPTY); setImageFile(null); setImagePreview(null); setModal(true) }
   function openEdit(o) {
     setEditing(o)
-    setForm({ title: o.title, type: o.type, description: o.description || '', productIds: getOfferProductIds(o), active: o.active, discountPercent: o.discountPercent || '' })
+    setForm({ title: o.title, type: o.type, description: o.description || '', productIds: getOfferProductIds(o), giftProductIds: o.giftProductIds || [], active: o.active, discountPercent: o.discountPercent || '' })
     setImageFile(null); setImagePreview(o.imageUrl || null); setModal(true)
   }
 
@@ -63,21 +103,15 @@ export default function AdminOffers() {
     setImageFile(file); setImagePreview(URL.createObjectURL(file))
   }
 
-  // An offer may include multiple bites but at most one box. Toggling a second box is blocked.
-  const isBox = id => products.find(p => p.id === id)?.type === 'box'
-  const hasBoxSelected = ids => ids.some(isBox)
+  const isBox    = id => products.find(p => p.id === id)?.type === 'box'
+  const isBogo   = form.type === 'buy1get1' || form.type === 'buy2get1'
+  const isBoxGift = form.type === 'box_gift'
 
-  function toggleProduct(p) {
-    setForm(prev => {
-      if (prev.productIds.includes(p.id)) {
-        return { ...prev, productIds: prev.productIds.filter(id => id !== p.id) }
-      }
-      if (p.type === 'box' && hasBoxSelected(prev.productIds)) {
-        toast.error('Only one box allowed per offer')
-        return prev
-      }
-      return { ...prev, productIds: [...prev.productIds, p.id] }
-    })
+  // Toggle a product id inside form[key] ('productIds' or 'giftProductIds')
+  const toggleId = key => p => {
+    setForm(prev => prev[key].includes(p.id)
+      ? { ...prev, [key]: prev[key].filter(id => id !== p.id) }
+      : { ...prev, [key]: [...prev[key], p.id] })
   }
 
   async function handleSave() {
@@ -85,9 +119,14 @@ export default function AdminOffers() {
     if (form.type === 'custom' && (!form.discountPercent || isNaN(form.discountPercent) || form.discountPercent < 1 || form.discountPercent > 100)) {
       toast.error('Enter a valid discount % (1–100)'); return
     }
-    if (form.productIds.filter(isBox).length > 1) {
-      toast.error('An offer can include at most one box'); return
-    }
+    // Normalise selections to the current type: BOGO offers are bites-only; box_gift offers
+    // link boxes as the main products and bites as the eligible free gifts.
+    const cleanProductIds = isBogo
+      ? form.productIds.filter(id => !isBox(id))
+      : isBoxGift
+        ? form.productIds.filter(isBox)
+        : form.productIds
+    const cleanGiftIds = isBoxGift ? form.giftProductIds.filter(id => !isBox(id)) : []
     setSaving(true)
     try {
       let imageUrl = editing?.imageUrl || null
@@ -100,7 +139,7 @@ export default function AdminOffers() {
         if (editing?.imageUrl) { try { await deleteObject(ref(storage, editing.imageUrl)) } catch (e) { console.warn('Old image delete failed:', e) } }
       }
       // Write productIds (new) plus a legacy productId (only when exactly one) for backward compatibility.
-      const data = { title: form.title.trim(), type: form.type, description: form.description.trim(), productIds: form.productIds, productId: form.productIds.length === 1 ? form.productIds[0] : null, active: form.active, imageUrl, discountPercent: form.type === 'custom' ? Number(form.discountPercent) : null, updatedAt: new Date() }
+      const data = { title: form.title.trim(), type: form.type, description: form.description.trim(), productIds: cleanProductIds, productId: cleanProductIds.length === 1 ? cleanProductIds[0] : null, giftProductIds: isBoxGift ? cleanGiftIds : null, active: form.active, imageUrl, discountPercent: form.type === 'custom' ? Number(form.discountPercent) : null, updatedAt: new Date() }
       if (editing) {
         await updateDoc(doc(db, 'offers', editing.id), data)
         toast.success('Offer updated!')
@@ -271,53 +310,49 @@ export default function AdminOffers() {
               <textarea placeholder="e.g. Order 1 Nutella Cookie, get 1 completely free!" value={form.description} onChange={set('description')} rows={3} style={{ resize: 'vertical' }} />
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Products in this Offer (optional)</label>
-              <p style={{ fontSize: 12, color: 'var(--text-light)', margin: '0 0 10px' }}>
-                Leave all unchecked to apply to every product. You can add multiple bites, but only one box per offer.
-              </p>
-              <div style={{ maxHeight: 220, overflowY: 'auto', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {products.length === 0 && (
-                  <p style={{ fontSize: 13, color: 'var(--text-light)', textAlign: 'center', padding: 12 }}>No available products</p>
-                )}
-                {products.map(p => {
-                  const box      = p.type === 'box'
-                  const selected = form.productIds.includes(p.id)
-                  const disabled = box && !selected && hasBoxSelected(form.productIds)
-                  return (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => toggleProduct(p)}
-                      disabled={disabled}
-                      title={disabled ? 'Only one box allowed per offer' : undefined}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 8,
-                        cursor: disabled ? 'not-allowed' : 'pointer', textAlign: 'left', width: '100%', fontFamily: 'Poppins,sans-serif',
-                        border: `1.5px solid ${selected ? 'var(--brown)' : 'var(--border)'}`,
-                        background: selected ? 'var(--cream)' : 'var(--white)', opacity: disabled ? 0.45 : 1,
-                      }}
-                    >
-                      <span style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: `2px solid ${selected ? 'var(--brown)' : 'var(--border)'}`, background: selected ? 'var(--brown)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {selected && <FontAwesomeIcon icon={faCircleCheck} style={{ fontSize: 11, color: 'white' }} />}
-                      </span>
-                      {p.imageUrl
-                        ? <img src={p.imageUrl} alt={p.name} style={{ width: 30, height: 30, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} />
-                        : <FontAwesomeIcon icon={box ? faBoxOpen : faCookieBite} style={{ fontSize: 18, color: 'var(--brown-light)', width: 30, flexShrink: 0 }} />
-                      }
-                      <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--brown-dark)' }}>{p.name}</span>
-                      {box && <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--brown)', background: 'var(--pink-light)', borderRadius: 4, padding: '2px 6px' }}>BOX</span>}
-                      <span style={{ fontSize: 12, color: 'var(--text-light)' }}>{p.price} EGP</span>
-                    </button>
-                  )
-                })}
-              </div>
-              {hasBoxSelected(form.productIds) && (
-                <p style={{ fontSize: 12, color: 'var(--text-light)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <FontAwesomeIcon icon={faBoxOpen} style={{ fontSize: 12 }} /> Only one box allowed per offer
+            {isBoxGift ? (
+              <>
+                <div className="form-group">
+                  <label className="form-label">Boxes in this Offer (optional)</label>
+                  <p style={{ fontSize: 12, color: 'var(--text-light)', margin: '0 0 10px' }}>
+                    The customer buys one of these boxes. Leave all unchecked to apply to every box.
+                  </p>
+                  <ProductChecklist
+                    items={products.filter(p => p.type === 'box')}
+                    selectedIds={form.productIds}
+                    onToggle={toggleId('productIds')}
+                    emptyText="No available boxes"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Free Gift Bites (optional)</label>
+                  <p style={{ fontSize: 12, color: 'var(--text-light)', margin: '0 0 10px' }}>
+                    Bites the customer can choose as their free gift. Leave all unchecked to allow any bite.
+                  </p>
+                  <ProductChecklist
+                    items={products.filter(p => p.type !== 'box')}
+                    selectedIds={form.giftProductIds}
+                    onToggle={toggleId('giftProductIds')}
+                    emptyText="No available bites"
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="form-group">
+                <label className="form-label">{isBogo ? 'Bites in this Offer (optional)' : 'Products in this Offer (optional)'}</label>
+                <p style={{ fontSize: 12, color: 'var(--text-light)', margin: '0 0 10px' }}>
+                  {isBogo
+                    ? 'Buy-X-Get-1 offers work with bites only — boxes are excluded. Leave all unchecked to apply to every bite.'
+                    : 'Leave all unchecked to apply to every product.'}
                 </p>
-              )}
-            </div>
+                <ProductChecklist
+                  items={isBogo ? products.filter(p => p.type !== 'box') : products}
+                  selectedIds={form.productIds}
+                  onToggle={toggleId('productIds')}
+                  emptyText="No available products"
+                />
+              </div>
+            )}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
               <button type="button" onClick={() => setForm({ ...form, active: !form.active })} style={{ background: form.active ? 'var(--brown)' : 'var(--border)', border: 'none', borderRadius: 50, padding: '9px 22px', color: form.active ? 'white' : 'var(--text-light)', fontWeight: 600, cursor: 'pointer', fontSize: 13, fontFamily: 'Poppins,sans-serif', display: 'inline-flex', alignItems: 'center', gap: 6 }}>

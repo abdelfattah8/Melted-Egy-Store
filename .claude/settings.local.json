@@ -9,7 +9,8 @@
       "Bash(firebase *)",
       "PowerShell(Get-Command *)",
       "Bash(python -c \"from PIL import Image; im=Image.open\\('choco-banner.jpg'\\); print\\('choco-banner.jpg', im.size\\)\")",
-      "Bash(node -e \"const s=require\\('fs'\\).statSync\\('choco-banner.jpg'\\); console.log\\('no PIL'\\)\")"
+      "Bash(node -e \"const s=require\\('fs'\\).statSync\\('choco-banner.jpg'\\); console.log\\('no PIL'\\)\")",
+      "PowerShell(python -c \"import PIL; print\\('pillow', PIL.__version__\\)\")"
     ]
   }
 }

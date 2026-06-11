@@ -37,6 +37,7 @@ function FieldError({ errors, name }) {
 const OFFER_TYPE_LABEL = {
   buy1get1:      'Buy 1 Get 1 Free',
   buy2get1:      'Buy 2 Get 1 Free',
+  box_gift:      'Buy Box, Get Bite Free',
   free_delivery: 'Free Delivery',
   custom:        'Custom Discount',
 }
@@ -278,8 +279,10 @@ export default function Checkout() {
         })
         const verifiedSubtotal = verifiedItems.reduce((s, i) => s + i.price * i.quantity, 0)
 
-        // Recompute offer discount from verified cart — never trust any stored amount
-        const { discountAmount: verifiedOfferDiscount, finalDeliveryFee: verifiedDelivery } = computeOfferResult(appliedOffer, verifiedItems, deliveryFee)
+        // Recompute offer discount from verified cart — never trust any stored amount.
+        // isValid also enforces the one-box-per-BOGO rule; an invalid offer gets no
+        // discount and is not recorded on the order.
+        const { discountAmount: verifiedOfferDiscount, finalDeliveryFee: verifiedDelivery, isValid: offerStillValid } = computeOfferResult(appliedOffer, verifiedItems, deliveryFee)
 
         // Re-validate promo code inside the transaction and mark it used atomically
         let verifiedPromoDiscount = 0
@@ -299,8 +302,8 @@ export default function Checkout() {
         }
 
         // Promo and offer are mutually exclusive — whichever is set wins
-        const verifiedEffectiveDiscount = appliedPromo ? verifiedPromoDiscount : verifiedOfferDiscount
-        const verifiedEffectiveDelivery = appliedPromo ? deliveryFee           : verifiedDelivery
+        const verifiedEffectiveDiscount = appliedPromo ? verifiedPromoDiscount : (offerStillValid ? verifiedOfferDiscount : 0)
+        const verifiedEffectiveDelivery = appliedPromo ? deliveryFee           : (offerStillValid ? verifiedDelivery : deliveryFee)
         const verifiedTotal   = Math.max(0, verifiedSubtotal - verifiedEffectiveDiscount) + verifiedEffectiveDelivery
         const verifiedDeposit = needsDeposit ? Math.ceil(verifiedSubtotal * 0.3) : 0
 
@@ -308,7 +311,13 @@ export default function Checkout() {
           userId: currentUser?.uid || null, isGuest: !currentUser,
           userInfo: { name: form.name.trim(), phone: form.phone.trim(), email: form.email.toLowerCase().trim(), address: form.address.trim(), city },
           items: verifiedItems, subtotal: verifiedSubtotal, deliveryFee: verifiedEffectiveDelivery, total: verifiedTotal,
-          appliedOffer: (appliedOffer && !appliedPromo) ? { id: appliedOffer.id, title: appliedOffer.title, type: appliedOffer.type, discountAmount: verifiedOfferDiscount } : null,
+          appliedOffer: (appliedOffer && !appliedPromo && offerStillValid)
+            ? {
+                id: appliedOffer.id, title: appliedOffer.title, type: appliedOffer.type, discountAmount: verifiedOfferDiscount,
+                // Which bite is the free gift (box_gift) — lets the admin see it on the order
+                giftItem: appliedOffer.giftItem ? { id: appliedOffer.giftItem.id, name: appliedOffer.giftItem.name } : null,
+              }
+            : null,
           appliedPromo: appliedPromo ? { id: appliedPromo.id, code: appliedPromo.code, discountPercent: appliedPromo.discountPercent, discountAmount: verifiedPromoDiscount } : null,
           discountAmount: verifiedEffectiveDiscount, paymentMethod, requiresDeposit: needsDeposit, depositAmount: verifiedDeposit,
           depositStatus: (needsDeposit || needsTransferUpload) ? 'submitted' : 'not_required', paymentProofPath,
@@ -339,9 +348,7 @@ export default function Checkout() {
     setLoading(false)
   }
 
-  const displayUnits    = getOfferDisplayUnits(appliedOffer, cartItems)
-  const minDisplayPrice = displayUnits.length ? Math.min(...displayUnits.map(u => u.price)) : null
-  const freeIndex       = displayUnits.findIndex(u => u.price === minDisplayPrice)
+  const displayUnits = getOfferDisplayUnits(appliedOffer, cartItems)
 
   return (
     <div className="checkout-page">
@@ -428,17 +435,14 @@ export default function Checkout() {
                     </div>
                     {displayUnits.length > 0 && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {displayUnits.map((s, i) => {
-                          const isFree = i === freeIndex
-                          return (
-                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-                              {s.imageUrl && <img src={s.imageUrl} alt={s.name} style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} />}
-                              <span style={{ color: 'var(--brown-dark)', fontWeight: 500 }}>{s.name}</span>
-                              <span style={{ color: 'var(--text-light)' }}>{s.price} EGP</span>
-                              {isFree && <span style={{ fontSize: 11, fontWeight: 700, color: '#2E7D32', background: '#E8F5E9', borderRadius: 4, padding: '1px 6px' }}>FREE</span>}
-                            </div>
-                          )
-                        })}
+                        {displayUnits.map((s, i) => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                            {s.imageUrl && <img src={s.imageUrl} alt={s.name} style={{ width: 28, height: 28, objectFit: 'cover', borderRadius: 5, flexShrink: 0 }} />}
+                            <span style={{ color: 'var(--brown-dark)', fontWeight: 500 }}>{s.name}</span>
+                            <span style={{ color: 'var(--text-light)', textDecoration: s.isFree ? 'line-through' : 'none' }}>{s.price} EGP</span>
+                            {s.isFree && <span style={{ fontSize: 11, fontWeight: 700, color: '#2E7D32', background: '#E8F5E9', borderRadius: 4, padding: '1px 6px' }}>FREE</span>}
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>

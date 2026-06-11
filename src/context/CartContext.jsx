@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect } from 'react'
 import toast from 'react-hot-toast'
-import { computeOfferResult } from '../utils/offerUtils'
+import { computeOfferResult, getOfferProductIds } from '../utils/offerUtils'
 
 const CartContext = createContext()
 export function useCart() { return useContext(CartContext) }
@@ -40,11 +40,15 @@ export function CartProvider({ children }) {
   // Auto-invalidate offer when the cart no longer meets its requirements
   useEffect(() => {
     if (!appliedOffer || cartItems.length === 0) return
-    const { isValid } = computeOfferResult(appliedOffer, cartItems, DELIVERY_FEE)
+    const { isValid, reason } = computeOfferResult(appliedOffer, cartItems, DELIVERY_FEE)
     if (!isValid) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setAppliedOffer(null)
-      toast('Offer removed — not enough qualifying items in cart', { icon: '⚠️' })
+      toast(reason === 'box_count'
+        ? 'Offer removed — this offer needs exactly one eligible box in the cart'
+        : reason === 'gift_missing'
+          ? 'Offer removed — the free gift item is no longer in your cart'
+          : 'Offer removed — not enough qualifying items in cart', { icon: '⚠️' })
     }
   }, [cartItems, appliedOffer])
 
@@ -87,7 +91,8 @@ export function CartProvider({ children }) {
 
   // Store only the offer metadata — discount is always recomputed from the live cart.
   // Applying an offer removes any active promo code (no stacking).
-  function applyOffer(offer) {
+  // `extra.giftItem` records the customer's chosen free bite for box_gift offers.
+  function applyOffer(offer, extra = {}) {
     setAppliedPromo(null)
     setAppliedOffer({
       id:              offer.id,
@@ -95,6 +100,9 @@ export function CartProvider({ children }) {
       type:            offer.type,
       discountPercent: offer.discountPercent ?? null,
       productId:       offer.productId ?? null,
+      productIds:      getOfferProductIds(offer),
+      giftProductIds:  offer.giftProductIds ?? null,
+      giftItem:        extra.giftItem ?? null,
     })
   }
   function removeOffer() { setAppliedOffer(null) }

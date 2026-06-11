@@ -10,12 +10,15 @@ import choco2 from '../assets/brand/download (2).png'
 // import choco2 from '../assets/brand/choco-banner-2.jpg'
 import catBrownies from '../assets/brand/brownies-home.jpeg'
 // import catBrownies from '../assets/brand/cat-brownies.jpg'
-import chocoBanner from '../assets/brand/choco-banner.jpg'
-import meltedSlogan from '../assets/brand/melted-slogan.png'
+// Text-free chocolate texture (derived from choco-banner-2.jpg) — the branding is NOT baked
+// in; it's overlaid once as .hero-slogan so it can never duplicate at any crop/aspect ratio.
+import chocoHeroBg from '../assets/brand/choco-hero-bg.jpg'
+import meltedSlogan from '../assets/brand/melted-slogan-hero.png'
 import packaging1 from '../assets/brand/packaging-1.jpg'
 import packaging2 from '../assets/brand/packaging-2.jpg'
 import { collection, getDocs, query, where, limit } from 'firebase/firestore'
 import { db } from '../firebase/config.jsx'
+import { offerRequiresSelection } from '../utils/offerUtils.js'
 import ProductCard from '../components/ProductCard.jsx'
 import { useCart } from '../context/CartContext.jsx'
 import OfferPickerModal from '../components/OfferPickerModal.jsx'
@@ -66,9 +69,7 @@ function Reveal({ children, delay = 0, style = {}, className = '' }) {
   )
 }
 
-function requiresSelection(offer) {
-  return offer?.type === 'buy1get1' || offer?.type === 'buy2get1'
-}
+const requiresSelection = offerRequiresSelection
 
 function ProductSkeleton() {
   return (
@@ -129,7 +130,7 @@ export default function Home() {
       setLoading(false)
     }
     load()
-  }, []) // eslint-disable-line react-hooks/set-state-in-effect
+  }, [])
 
   function handleOfferClick(offer) {
     if (requiresSelection(offer)) {
@@ -141,9 +142,9 @@ export default function Home() {
     }
   }
 
-  function handleModalConfirm(itemsToAdd) {
+  function handleModalConfirm(itemsToAdd, extra) {
     for (const { product, qty } of itemsToAdd) addToCart(product, qty)
-    applyOffer(activeOffer)
+    applyOffer(activeOffer, extra)
     setActiveOffer(null)
     toast.success(`Offer applied: ${activeOffer.title} 🎁`)
     navigate('/checkout')
@@ -166,10 +167,13 @@ export default function Home() {
       )}
 
       {/* ── HERO ── */}
+      {/* One unified implementation at every width: the text-free texture covers the section
+          exactly once (cover/center/no-repeat), and badge + slogan + buttons are HTML overlay
+          elements rendered exactly once on top. */}
       <section
         className="hero"
         style={{
-          backgroundImage: `url(${chocoBanner})`,
+          backgroundImage: `url(${chocoHeroBg})`,
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
@@ -177,7 +181,7 @@ export default function Home() {
           justifyContent: 'space-between',
         }}
       >
-        {/* Only the bottom ~45% darkens — the logo in the image stays fully visible */}
+        {/* Bottom ~45% darkens so the buttons stay readable over the texture */}
         <div style={{
           position: 'absolute',
           inset: 0,
@@ -190,7 +194,7 @@ export default function Home() {
           <div className="hero-badge">✦ Handcrafted with love in Egypt</div>
         </div>
 
-        {/* Slogan overlay — shown on mobile only; desktop uses the logo baked into the banner */}
+        {/* Brand lockup — title + tagline, centered, at all breakpoints */}
         <img src={meltedSlogan} alt="Melted — Made to melt hearts" className="hero-slogan" />
 
         {/* Subtitle + buttons — bottom edge, over the dark gradient */}

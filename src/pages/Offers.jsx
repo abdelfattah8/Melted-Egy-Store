@@ -4,7 +4,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faGift, faCartShopping, faCircleCheck, faTruck, faWandMagicSparkles, faCookieBite, faClock, faBagShopping } from '@fortawesome/free-solid-svg-icons'
 import { db } from '../firebase/config.jsx'
-import { getOfferProductIds } from '../utils/offerUtils.js'
+import { getOfferProductIds, offerRequiresSelection } from '../utils/offerUtils.js'
 import { useCart } from '../context/CartContext.jsx'
 import OfferPickerModal from '../components/OfferPickerModal.jsx'
 import SEO from '../components/SEO.jsx'
@@ -13,13 +13,12 @@ import toast from 'react-hot-toast'
 const TYPE_LABEL = {
   buy1get1:      { label: 'Buy 1 Get 1 Free', color: '#5B3121', bg: '#F6CDD0' },
   buy2get1:      { label: 'Buy 2 Get 1 Free', color: '#5B3121', bg: '#F6CDD0' },
+  box_gift:      { label: 'Buy Box, Get Bite Free', color: '#7B1FA2', bg: '#F3E5F5' },
   free_delivery: { label: 'Free Delivery',     color: '#2E7D32', bg: '#E8F5E9' },
   custom:        { label: 'Special Discount',  color: '#1565C0', bg: '#E3F2FD' },
 }
 
-function requiresSelection(offer) {
-  return offer?.type === 'buy1get1' || offer?.type === 'buy2get1'
-}
+const requiresSelection = offerRequiresSelection
 
 export default function Offers() {
   const [offers,      setOffers]      = useState([])
@@ -42,7 +41,7 @@ export default function Offers() {
       setLoading(false)
     }
     load()
-  }, []) // eslint-disable-line react-hooks/set-state-in-effect
+  }, [])
 
   const getProduct = id => products.find(p => p.id === id)
 
@@ -56,9 +55,9 @@ export default function Offers() {
     }
   }
 
-  function handleModalConfirm(itemsToAdd) {
+  function handleModalConfirm(itemsToAdd, extra) {
     for (const { product, qty } of itemsToAdd) addToCart(product, qty)
-    applyOffer(activeOffer)
+    applyOffer(activeOffer, extra)
     setActiveOffer(null)
     toast.success(`Offer applied: ${activeOffer.title}`)
     navigate('/checkout')

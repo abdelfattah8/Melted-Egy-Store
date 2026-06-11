@@ -10,7 +10,9 @@ import toast from 'react-hot-toast'
 
 const COUNTING_CATS = ['cookies', 'brownies']
 
-export default function BoxBuilderModal({ box, onClose }) {
+// `onAdded` (optional): called instead of `onClose` after the box is added to the cart —
+// lets the box_gift offer flow advance to the free-gift step. Cancel always calls `onClose`.
+export default function BoxBuilderModal({ box, onClose, onAdded }) {
   const { addBoxToCart, cartItems } = useCart()
   const [flavors, setFlavors] = useState([])
   const [loading, setLoading] = useState(true)
@@ -70,7 +72,8 @@ export default function BoxBuilderModal({ box, onClose }) {
       .map(f => ({ id: f.id, name: f.name, quantity: choices[f.id], imageUrl: f.imageUrl || '' }))
     addBoxToCart(box, choiceList)
     toast.success(`${box.name} added to cart! 🎁`)
-    onClose()
+    if (onAdded) onAdded()
+    else onClose()
   }
 
   const pct = isCounting && boxSize > 0 ? Math.min(100, (totalSelected / boxSize) * 100) : 0
