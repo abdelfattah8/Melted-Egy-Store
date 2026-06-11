@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore'
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faPencil, faTag, faTrash, faCamera, faCircleCheck, faCircleXmark, faWandMagicSparkles, faTriangleExclamation, faXmark, faCookieBite, faLayerGroup, faCakeCandles, faMugHot, faUtensils, faBoxOpen } from '@fortawesome/free-solid-svg-icons'
+import { faPencil, faTag, faTrash, faCamera, faCircleCheck, faCircleXmark, faWandMagicSparkles, faTriangleExclamation, faXmark, faCookieBite, faLayerGroup, faCakeCandles, faMugHot, faUtensils, faBoxOpen, faIceCream, faJarWheat } from '@fortawesome/free-solid-svg-icons'
 import { db, storage } from '../../firebase/config.jsx'
 import { InlineLoader } from '../../components/Loader.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import toast from 'react-hot-toast'
 
-const EMPTY     = { name: '', description: '', price: '', category: 'cookies', available: true, imageUrl: '', onSale: false, salePrice: '', isNew: false, stock: '' }
+const EMPTY     = { name: '', description: '', price: '', category: 'cookies', available: true, imageUrl: '', onSale: false, salePrice: '', isNew: false, stock: '', flavorIds: [], extraIds: [] }
 const BOX_EMPTY = { name: '', description: '', price: '', boxCategory: 'cookies', boxSize: '', stock: '', available: true, imageUrl: '', onSale: false, salePrice: '', isNew: false }
 
 const CATEGORIES = ['cookies', 'brownies', 'cheesecake', 'tiramisu']
@@ -60,6 +60,8 @@ export default function AdminProducts() {
   const [uploadProgress, setUploadProgress]     = useState(0)
   const [saving,         setSaving]             = useState(false)
   const [confirmDelete,  setConfirmDelete]       = useState(null)
+  const [allFlavors,     setAllFlavors]          = useState([])
+  const [allExtras,      setAllExtras]           = useState([])
 
   async function load() {
     setLoading(true)
@@ -70,8 +72,21 @@ export default function AdminProducts() {
     setLoading(false)
   }
 
+  // Flavors/extras feed the checkbox pickers in the product form
+  async function loadCatalog() {
+    try {
+      const [fSnap, eSnap] = await Promise.all([
+        getDocs(collection(db, 'flavors')),
+        getDocs(collection(db, 'extras')),
+      ])
+      const byName = (a, b) => (a.name || '').localeCompare(b.name || '')
+      setAllFlavors(fSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort(byName))
+      setAllExtras(eSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort(byName))
+    } catch (err) { console.error('Flavors/extras load failed:', err) }
+  }
+
   // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { load() }, [])
+  useEffect(() => { load(); loadCatalog() }, [])
 
   function openNewProduct() {
     setFormType('product'); setEditing(null); setForm(EMPTY)
@@ -90,7 +105,7 @@ export default function AdminProducts() {
       setForm({ name: p.name, description: p.description || '', price: p.price, boxCategory: p.boxCategory || p.category, boxSize: p.boxSize ?? '', stock: p.stock ?? '', available: p.available, imageUrl: p.imageUrl || '', onSale: p.onSale || false, salePrice: p.salePrice || '', isNew: p.isNew || false })
     } else {
       setFormType('product')
-      setForm({ name: p.name, description: p.description || '', price: p.price, category: p.category, available: p.available, imageUrl: p.imageUrl || '', onSale: p.onSale || false, salePrice: p.salePrice || '', isNew: p.isNew || false, stock: p.stock ?? '' })
+      setForm({ name: p.name, description: p.description || '', price: p.price, category: p.category, available: p.available, imageUrl: p.imageUrl || '', onSale: p.onSale || false, salePrice: p.salePrice || '', isNew: p.isNew || false, stock: p.stock ?? '', flavorIds: p.flavorIds || [], extraIds: p.extraIds || [] })
     }
     setImgFile(null); setImgPreview(p.imageUrl || ''); setErrors({}); setUploadProgress(0); setModal(true)
   }
@@ -153,6 +168,7 @@ export default function AdminProducts() {
           category: form.category, available: form.available, imageUrl: imageUrl || '',
           onSale: form.onSale, salePrice: form.onSale ? Number(form.salePrice) : null,
           isNew: form.isNew, stock: form.stock !== '' ? Number(form.stock) : null,
+          flavorIds: form.flavorIds || [], extraIds: form.extraIds || [],
           updatedAt: new Date(),
         }
       }
@@ -201,7 +217,7 @@ export default function AdminProducts() {
         setForm({ name: p.name, description: p.description || '', price: p.price, boxCategory: p.boxCategory || p.category, boxSize: p.boxSize ?? '', stock: p.stock ?? '', available: p.available, imageUrl: p.imageUrl || '', onSale: true, salePrice: '', isNew: p.isNew || false })
       } else {
         setFormType('product')
-        setForm({ name: p.name, description: p.description || '', price: p.price, category: p.category, available: p.available, imageUrl: p.imageUrl || '', onSale: true, salePrice: '', isNew: p.isNew || false, stock: p.stock ?? '' })
+        setForm({ name: p.name, description: p.description || '', price: p.price, category: p.category, available: p.available, imageUrl: p.imageUrl || '', onSale: true, salePrice: '', isNew: p.isNew || false, stock: p.stock ?? '', flavorIds: p.flavorIds || [], extraIds: p.extraIds || [] })
       }
       setImgFile(null); setImgPreview(p.imageUrl || ''); setErrors({}); setUploadProgress(0); setModal(true)
       toast('Set the sale price and save', { icon: <FontAwesomeIcon icon={faTag} style={{ fontSize: 16 }} /> })
@@ -209,6 +225,10 @@ export default function AdminProducts() {
   }
 
   const set = k => e => { setForm({ ...form, [k]: e.target.value }); setErrors(prev => ({ ...prev, [k]: '' })) }
+  const toggleId = (k, id) => setForm(f => {
+    const list = f[k] || []
+    return { ...f, [k]: list.includes(id) ? list.filter(x => x !== id) : [...list, id] }
+  })
   const discountPct = (p) => p.onSale && p.salePrice ? Math.round((1 - p.salePrice / p.price) * 100) : 0
 
   const isBoxCounting = COUNTING.includes(form.boxCategory)
@@ -402,6 +422,55 @@ export default function AdminProducts() {
               {errors.stock && <div className="field-error"><FontAwesomeIcon icon={faTriangleExclamation} style={{ fontSize: 12 }} /> {errors.stock}</div>}
               <div style={{ fontSize: 12, color: 'var(--text-light)', marginTop: 4 }}>Set to 0 to mark as out of stock. Leave empty for unlimited.</div>
             </div>
+
+            {/* Flavors + Extras — products only (boxes have their own flavor picker) */}
+            {formType !== 'box' && (
+              <>
+                <div className="form-group">
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <FontAwesomeIcon icon={faIceCream} style={{ fontSize: 13, color: 'var(--brown)' }} /> Flavors
+                    <span style={{ fontSize: 11, color: 'var(--text-light)', fontWeight: 400 }}>— shown on the product card</span>
+                  </label>
+                  {allFlavors.length === 0 ? (
+                    <div style={{ fontSize: 12, color: 'var(--text-light)' }}>No flavors yet — add them in the Flavors section first.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {allFlavors.map(f => {
+                        const checked = (form.flavorIds || []).includes(f.id)
+                        return (
+                          <button key={f.id} type="button" onClick={() => toggleId('flavorIds', f.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 50, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins,sans-serif', transition: 'all 0.2s', border: checked ? '1.5px solid var(--brown)' : '1.5px solid var(--border)', background: checked ? 'var(--brown)' : 'white', color: checked ? 'white' : 'var(--text)', opacity: f.active === false ? 0.55 : 1 }}>
+                            {checked && <FontAwesomeIcon icon={faCircleCheck} style={{ fontSize: 12 }} />}
+                            {f.name}{f.active === false ? ' (inactive)' : ''}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <FontAwesomeIcon icon={faJarWheat} style={{ fontSize: 13, color: 'var(--brown)' }} /> Available Extras
+                    <span style={{ fontSize: 11, color: 'var(--text-light)', fontWeight: 400 }}>— optional paid add-ons the customer can pick</span>
+                  </label>
+                  {allExtras.length === 0 ? (
+                    <div style={{ fontSize: 12, color: 'var(--text-light)' }}>No extras yet — add them in the Extras section first.</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {allExtras.map(x => {
+                        const checked = (form.extraIds || []).includes(x.id)
+                        return (
+                          <button key={x.id} type="button" onClick={() => toggleId('extraIds', x.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 50, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins,sans-serif', transition: 'all 0.2s', border: checked ? '1.5px solid var(--brown)' : '1.5px solid var(--border)', background: checked ? 'var(--brown)' : 'white', color: checked ? 'white' : 'var(--text)', opacity: x.active === false ? 0.55 : 1 }}>
+                            {checked && <FontAwesomeIcon icon={faCircleCheck} style={{ fontSize: 12 }} />}
+                            {x.name} (+{x.price} EGP){x.active === false ? ' (inactive)' : ''}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* Sale toggle */}
             <div style={{ background: form.onSale ? '#FFF8E7' : 'var(--cream)', borderRadius: 'var(--radius-sm)', padding: 18, marginBottom: 22, border: form.onSale ? '1.5px solid #FFD700' : '1.5px solid var(--border)' }}>

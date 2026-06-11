@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faHeart as faHeartSolid, faCircleXmark, faCookieBite, faMugHot, faCakeCandles, faLayerGroup, faUtensils, faWandMagicSparkles, faBoxOpen } from '@fortawesome/free-solid-svg-icons'
+import { faHeart as faHeartSolid, faCircleXmark, faCookieBite, faMugHot, faCakeCandles, faLayerGroup, faUtensils, faWandMagicSparkles, faBoxOpen, faJarWheat } from '@fortawesome/free-solid-svg-icons'
 import BoxBuilderModal from './BoxBuilderModal.jsx'
+import ExtrasModal from './ExtrasModal.jsx'
+import { useFlavors } from '../hooks/useCatalog.js'
 
 const faHeartOutline = { prefix: 'far', iconName: 'heart', icon: [512, 512, [], 'f004', 'M378.9 80c-27.3 0-53 13.1-69 35.2l-34.4 47.6c-4.5 6.2-11.7 9.9-19.4 9.9s-14.9-3.7-19.4-9.9l-34.4-47.6c-16-22.1-41.7-35.2-69-35.2-47 0-85.1 38.1-85.1 85.1 0 49.9 32 98.4 68.1 142.3 41.1 50 91.4 94 125.9 120.3 3.2 2.4 7.9 4.2 14 4.2s10.8-1.8 14-4.2c34.5-26.3 84.8-70.4 125.9-120.3 36.2-43.9 68.1-92.4 68.1-142.3 0-47-38.1-85.1-85.1-85.1zM271 87.1c25-34.6 65.2-55.1 107.9-55.1 73.5 0 133.1 59.6 133.1 133.1 0 68.6-42.9 128.9-79.1 172.8-44.1 53.6-97.3 100.1-133.8 127.9-12.3 9.4-27.5 14.1-43.1 14.1s-30.8-4.7-43.1-14.1C176.4 438 123.2 391.5 79.1 338 42.9 294.1 0 233.7 0 165.1 0 91.6 59.6 32 133.1 32 175.8 32 216 52.5 241 87.1l15 20.7 15-20.7z'] }
 import toast from 'react-hot-toast'
@@ -16,6 +18,8 @@ export default function ProductCard({ product }) {
   const { toggleWishlist, isWishlisted } = useWishlist()
   const [qty, setQty]           = useState(0)
   const [boxModal, setBoxModal] = useState(false)
+  const [extrasModal, setExtrasModal] = useState(false)
+  const allFlavors = useFlavors()
 
   const activePrice   = product.onSale && product.salePrice ? product.salePrice : product.price
   const onSale        = product.onSale && product.salePrice && product.salePrice < product.price
@@ -23,9 +27,15 @@ export default function ProductCard({ product }) {
   const wishlisted    = isWishlisted(product.id)
   const isUnavailable = !product.available || (typeof product.stock === 'number' && product.stock <= 0)
   const maxQty        = typeof product.stock === 'number' && product.stock > 0 ? product.stock : 100
-  const inCart        = cartItems.find(i => i.id === product.id)?.quantity ?? 0
+  // Sum across lines — a product with extras can occupy several cart lines
+  const inCart        = cartItems.filter(i => i.id === product.id).reduce((s, i) => s + i.quantity, 0)
 
-  const catIcon = CAT_ICONS[product.category] || faUtensils
+  const catIcon   = CAT_ICONS[product.category] || faUtensils
+  const hasExtras = !product.type && (product.extraIds?.length > 0)
+  const flavorNames = (product.flavorIds || [])
+    .map(id => allFlavors.find(f => f.id === id))
+    .filter(f => f && f.active !== false)
+    .map(f => f.name)
 
   function dec() { if (qty > 0) setQty(q => q - 1) }
   function inc() { if (qty + inCart < maxQty) setQty(q => q + 1) }
@@ -97,6 +107,11 @@ export default function ProductCard({ product }) {
           }
         </p>
         <h3 className="product-card-name">{product.name}</h3>
+        {flavorNames.length > 0 && (
+          <div className="product-card-flavors">
+            {flavorNames.map(name => <span key={name} className="product-card-flavor">{name}</span>)}
+          </div>
+        )}
         {product.description && <p className="product-card-desc">{product.description}</p>}
 
         {/* Price */}
@@ -138,6 +153,14 @@ export default function ProductCard({ product }) {
           >
             <FontAwesomeIcon icon={faBoxOpen} style={{ fontSize: 14 }} /> Build Your Box
           </button>
+        ) : hasExtras ? (
+          <button
+            className="add-to-cart-btn"
+            onClick={() => setExtrasModal(true)}
+            style={{ width: '100%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}
+          >
+            <FontAwesomeIcon icon={faJarWheat} style={{ fontSize: 14 }} /> Add to Cart
+          </button>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -161,6 +184,7 @@ export default function ProductCard({ product }) {
       </div>
 
       {boxModal && <BoxBuilderModal box={product} onClose={() => setBoxModal(false)} />}
+      {extrasModal && <ExtrasModal product={product} onClose={() => setExtrasModal(false)} />}
     </div>
   )
 }

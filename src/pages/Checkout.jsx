@@ -7,7 +7,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCartShopping, faUser, faClipboardList, faTruck, faGift, faCreditCard, faMoneyBill, faWallet, faCamera, faTriangleExclamation, faCircleCheck, faClock, faXmark, faLocationDot, faTrash, faTag } from '@fortawesome/free-solid-svg-icons'
 import { db, storage } from '../firebase/config.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import { useCart } from '../context/CartContext.jsx'
+import { useCart, cartLineKey, itemUnitPrice } from '../context/CartContext.jsx'
 import SEO from '../components/SEO.jsx'
 import toast from 'react-hot-toast'
 
@@ -153,9 +153,9 @@ export default function Checkout() {
   function handleQtyChange(item, delta) {
     const newQty = item.quantity + delta
     const max = typeof item.stock === 'number' && item.stock > 0 ? item.stock : 100
-    if (newQty <= 0) { removeFromCart(item.id); toast(`${item.name} removed`, { icon: <FontAwesomeIcon icon={faTrash} style={{ fontSize: 16 }} /> }) }
+    if (newQty <= 0) { removeFromCart(cartLineKey(item)); toast(`${item.name} removed`, { icon: <FontAwesomeIcon icon={faTrash} style={{ fontSize: 16 }} /> }) }
     else if (newQty > max) toast.error(`Only ${max} of "${item.name}" available`)
-    else updateQuantity(item.id, newQty)
+    else updateQuantity(cartLineKey(item), newQty)
   }
 
   function handleReceiptFile(e) {
@@ -258,11 +258,27 @@ export default function Checkout() {
           }
         })
 
-        for (const item of cartItems) {
-          const s = stockMap[item.id]
+        // CRITICAL: re-fetch the extras' real prices from Firestore — never trust the
+        // client-sent extra prices. Deleted or deactivated extras are silently dropped.
+        const allExtraIds = [...new Set(cartItems.flatMap(i => (i.extras || []).map(e => e.id)))]
+        const extraSnaps  = await Promise.all(allExtraIds.map(id => txn.get(doc(db, 'extras', id))))
+        const extrasMap   = {}
+        extraSnaps.forEach((snap, i) => {
+          if (snap.exists() && snap.data().active !== false) {
+            extrasMap[allExtraIds[i]] = { name: snap.data().name, price: Number(snap.data().price) || 0 }
+          }
+        })
+
+        // Aggregate quantities by product — a product with different extras combos
+        // occupies several cart lines but draws from one stock pool.
+        const qtyById = {}
+        cartItems.forEach(i => { qtyById[i.id] = (qtyById[i.id] || 0) + i.quantity })
+        for (const id of Object.keys(qtyById)) {
+          const s = stockMap[id]
           if (typeof s === 'number') {
-            if (s <= 0) stockErrors.push(`"${item.name}" is currently unavailable`)
-            else if (s < item.quantity) stockErrors.push(`"${item.name}": only ${s} available (you ordered ${item.quantity})`)
+            const name = cartItems.find(i => i.id === id)?.name
+            if (s <= 0) stockErrors.push(`"${name}" is currently unavailable`)
+            else if (s < qtyById[id]) stockErrors.push(`"${name}": only ${s} available (you ordered ${qtyById[id]})`)
           }
         }
 
@@ -275,9 +291,16 @@ export default function Checkout() {
         const verifiedItems    = cartItems.map(i => {
           const base = { id: i.id, name: i.name, price: priceMap[i.id] ?? i.price, quantity: Math.min(i.quantity, stockMap[i.id] ?? 100), category: i.category }
           if (i.type === 'box') { base.type = 'box'; base.boxChoices = i.boxChoices || [] }
+          const verifiedExtras = (i.extras || [])
+            .filter(e => extrasMap[e.id])
+            .map(e => ({ id: e.id, name: extrasMap[e.id].name, price: extrasMap[e.id].price }))
+          if (verifiedExtras.length) base.extras = verifiedExtras
           return base
         })
-        const verifiedSubtotal = verifiedItems.reduce((s, i) => s + i.price * i.quantity, 0)
+        // `price` above stays the BASE product price so the offer math below never
+        // discounts extras; line totals add the verified extras on top.
+        const lineExtrasSum    = i => (i.extras || []).reduce((s, e) => s + e.price, 0)
+        const verifiedSubtotal = verifiedItems.reduce((s, i) => s + (i.price + lineExtrasSum(i)) * i.quantity, 0)
 
         // Recompute offer discount from verified cart — never trust any stored amount.
         // isValid also enforces the one-box-per-BOGO rule; an invalid offer gets no
@@ -310,7 +333,12 @@ export default function Checkout() {
         const orderData = {
           userId: currentUser?.uid || null, isGuest: !currentUser,
           userInfo: { name: form.name.trim(), phone: form.phone.trim(), email: form.email.toLowerCase().trim(), address: form.address.trim(), city },
-          items: verifiedItems, subtotal: verifiedSubtotal, deliveryFee: verifiedEffectiveDelivery, total: verifiedTotal,
+          // Stored item price = unit price INCLUDING extras so existing order views
+          // (price × quantity) stay correct; basePrice + extras keep the breakdown.
+          items: verifiedItems.map(i => i.extras?.length
+            ? { ...i, basePrice: i.price, price: i.price + lineExtrasSum(i) }
+            : i),
+          subtotal: verifiedSubtotal, deliveryFee: verifiedEffectiveDelivery, total: verifiedTotal,
           appliedOffer: (appliedOffer && !appliedPromo && offerStillValid)
             ? {
                 id: appliedOffer.id, title: appliedOffer.title, type: appliedOffer.type, discountAmount: verifiedOfferDiscount,
@@ -329,10 +357,11 @@ export default function Checkout() {
         // Append customer email to usedBy — atomic with order creation, enforces one-use-per-email
         if (promoRef) txn.update(promoRef, { usedBy: arrayUnion(form.email.toLowerCase().trim()) })
 
-        for (const item of cartItems) {
-          const s = stockMap[item.id]
+        // One decrement per product — lines of the same product are aggregated above
+        for (const id of Object.keys(qtyById)) {
+          const s = stockMap[id]
           if (typeof s === 'number') {
-            txn.update(doc(db, 'products', item.id), { stock: Math.max(0, s - Math.min(item.quantity, 100)) })
+            txn.update(doc(db, 'products', id), { stock: Math.max(0, s - Math.min(qtyById[id], 100)) })
           }
         }
       })
@@ -641,7 +670,7 @@ export default function Checkout() {
           <div className="order-summary-card">
             <h3>Order Summary</h3>
             {cartItems.map(item => (
-              <div key={item.id} className="summary-item" style={{ alignItems: 'flex-start', paddingTop: 14, paddingBottom: 14 }}>
+              <div key={cartLineKey(item)} className="summary-item" style={{ alignItems: 'flex-start', paddingTop: 14, paddingBottom: 14 }}>
                 <div style={{ flex: 1 }}>
                   <div className="summary-item-name" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     {item.type === 'box' && (
@@ -654,16 +683,21 @@ export default function Checkout() {
                       {item.boxChoices.map(c => c.quantity > 1 ? `${c.name} ×${c.quantity}` : c.name).join(' · ')}
                     </div>
                   )}
+                  {item.extras?.length > 0 && (
+                    <div style={{ fontSize: 12, color: 'var(--brown)', marginTop: 3, lineHeight: 1.5 }}>
+                      {item.extras.map(e => `+ ${e.name} (+${e.price} EGP)`).join(' · ')}
+                    </div>
+                  )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
                     <button className="qty-btn-mini" onClick={() => handleQtyChange(item, -1)}>
                       {item.quantity === 1 ? <FontAwesomeIcon icon={faTrash} style={{ fontSize: 12 }} /> : '−'}
                     </button>
                     <span className="qty-value-mini">{item.quantity}</span>
                     <button className="qty-btn-mini" onClick={() => handleQtyChange(item, 1)} disabled={item.quantity >= (typeof item.stock === 'number' && item.stock > 0 ? item.stock : 100)}>+</button>
-                    <span style={{ fontSize: 12, color: 'var(--text-light)' }}>× {item.price} EGP</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-light)' }}>× {itemUnitPrice(item)} EGP</span>
                   </div>
                 </div>
-                <div className="summary-item-price" style={{ marginTop: 4 }}>{item.price * item.quantity} EGP</div>
+                <div className="summary-item-price" style={{ marginTop: 4 }}>{itemUnitPrice(item) * item.quantity} EGP</div>
               </div>
             ))}
 

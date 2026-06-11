@@ -8,6 +8,16 @@ export function useCart() { return useContext(CartContext) }
 
 const DELIVERY_FEE = 85
 
+// A line's identity: same product + same extras combo = same line. Items without
+// extras keep their plain product id, so existing carts/logic are unaffected.
+export function cartLineKey(item) { return item.cartKey || item.id }
+
+// Unit price of a cart line including its selected extras. `price` stays the BASE
+// product price so offer/discount math keeps working on base prices only.
+export function itemUnitPrice(item) {
+  return item.price + (item.extras?.reduce((s, e) => s + e.price, 0) || 0)
+}
+
 export function CartProvider({ children }) {
   const [cartItems, setCartItems] = useState(() => {
     try { const s = localStorage.getItem('melted_cart'); return s ? JSON.parse(s) : [] }
@@ -69,15 +79,37 @@ export function CartProvider({ children }) {
       return [...prev, { ...product, quantity: Math.min(qty, max) }]
     })
   }
-  function removeFromCart(id) { setCartItems(prev => prev.filter(i => i.id !== id)) }
-  function updateQuantity(id, qty) {
-    if (qty <= 0) { removeFromCart(id); return }
+  function removeFromCart(key) { setCartItems(prev => prev.filter(i => cartLineKey(i) !== key)) }
+  function updateQuantity(key, qty) {
+    if (qty <= 0) { removeFromCart(key); return }
     setCartItems(prev => prev.map(i => {
-      if (i.id !== id) return i
+      if (cartLineKey(i) !== key) return i
       return { ...i, quantity: Math.min(qty, stockMax(i)) }
     }))
   }
   function clearCart() { setCartItems([]) }
+
+  // Add a product together with its chosen extras. Each distinct extras combo is its
+  // own cart line (cartKey), so "Cookie + Lotus" and a plain "Cookie" don't merge.
+  function addToCartWithExtras(product, qty, extras = []) {
+    const sorted  = [...extras].sort((a, b) => a.id.localeCompare(b.id))
+    const cartKey = sorted.length ? `${product.id}::${sorted.map(e => e.id).join('+')}` : product.id
+    setCartItems(prev => {
+      const exists = prev.find(i => cartLineKey(i) === cartKey)
+      if (exists) {
+        return prev.map(i => cartLineKey(i) === cartKey
+          ? { ...i, quantity: Math.min(i.quantity + qty, stockMax(i)) }
+          : i)
+      }
+      const max = typeof product.stock === 'number' && product.stock > 0 ? product.stock : 100
+      const line = { ...product, quantity: Math.min(qty, max) }
+      if (sorted.length) {
+        line.cartKey = cartKey
+        line.extras  = sorted.map(e => ({ id: e.id, name: e.name, price: e.price }))
+      }
+      return [...prev, line]
+    })
+  }
 
   function addBoxToCart(box, choices) {
     setCartItems(prev => {
@@ -114,7 +146,7 @@ export function CartProvider({ children }) {
   }
   function removePromo() { setAppliedPromo(null) }
 
-  const subtotal        = cartItems.reduce((s, i) => s + i.price * i.quantity, 0)
+  const subtotal        = cartItems.reduce((s, i) => s + itemUnitPrice(i) * i.quantity, 0)
   const deliveryFee     = cartItems.length > 0 ? DELIVERY_FEE : 0
   const total           = subtotal + deliveryFee
   const itemCount       = cartItems.reduce((s, i) => s + i.quantity, 0)
@@ -131,7 +163,7 @@ export function CartProvider({ children }) {
   return (
     <CartContext.Provider value={{
       cartItems, cartOpen, setCartOpen,
-      addToCart, removeFromCart, updateQuantity, clearCart, addBoxToCart,
+      addToCart, addToCartWithExtras, removeFromCart, updateQuantity, clearCart, addBoxToCart,
       subtotal, deliveryFee, total, itemCount,
       requiresDeposit, depositAmount,
       appliedOffer, applyOffer, removeOffer,

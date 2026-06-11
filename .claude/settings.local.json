@@ -10,7 +10,10 @@
       "PowerShell(Get-Command *)",
       "Bash(python -c \"from PIL import Image; im=Image.open\\('choco-banner.jpg'\\); print\\('choco-banner.jpg', im.size\\)\")",
       "Bash(node -e \"const s=require\\('fs'\\).statSync\\('choco-banner.jpg'\\); console.log\\('no PIL'\\)\")",
-      "PowerShell(python -c \"import PIL; print\\('pillow', PIL.__version__\\)\")"
+      "PowerShell(python -c \"import PIL; print\\('pillow', PIL.__version__\\)\")",
+      "PowerShell(python -c \"from PIL import Image; im = Image.open\\(r'src\\\\assets\\\\brand\\\\melted-logo-pink.png'\\); print\\(im.mode, im.size\\); im2 = im.convert\\('RGBA'\\); a = im2.getchannel\\('A'\\); print\\('alpha min/max:', a.getextrema\\(\\)\\); print\\('corner px:', im2.getpixel\\(\\(0,0\\)\\)\\)\")",
+      "PowerShell(python -c \"from PIL import Image; [print\\(p, Image.open\\(p\\).mode, Image.open\\(p\\).size, 'corner alpha:', Image.open\\(p\\).convert\\('RGBA'\\).getpixel\\(\\(0,0\\)\\)[3]\\) for p in [r'public\\\\favicon-16x16.png', r'public\\\\favicon-32x32.png', r'public\\\\apple-touch-icon.png']]\")",
+      "PowerShell(node -e \"const i=require\\('@fortawesome/free-solid-svg-icons'\\); console.log\\('faIceCream', !!i.faIceCream, '| faJarWheat', !!i.faJarWheat, '| faCirclePlus', !!i.faCirclePlus\\)\")"
     ]
   }
 }

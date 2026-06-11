@@ -43,6 +43,8 @@ React Router v7. Three protection tiers:
 | `orders` | owner or admin | anyone creates; admin updates |
 | `users` | self or admin | self (but `isAdmin` is immutable by users) |
 | `settings` | anyone | admin only |
+| `flavors` | anyone | admin only |
+| `extras` | anyone | admin only |
 
 Security rules are in `firestore.rules` — paste into the Firebase console to deploy.
 

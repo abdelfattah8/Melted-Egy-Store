@@ -177,8 +177,6 @@ export default function Home() {
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
         }}
       >
         {/* Bottom ~45% darkens so the buttons stay readable over the texture */}

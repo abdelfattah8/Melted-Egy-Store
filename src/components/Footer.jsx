@@ -1,15 +1,16 @@
 import { Link } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faInstagram, faFacebook, faWhatsapp } from '@fortawesome/free-brands-svg-icons'
-import logoPinkSlogan from '../assets/brand/melted-slogan.png'
+import { faEnvelope } from '@fortawesome/free-solid-svg-icons'
+import logoPink from '../assets/brand/melted-logo-pink.png'
 
 export default function Footer() {
   return ( 
     <footer className="footer">
       <div className="footer-grid">
         <div className="footer-brand">
-          <img src={logoPinkSlogan} alt="Melted" style={{ height: 180, width: 'auto', maxWidth: '100%', display: 'block', marginBottom: 12,marginTop:-50,marginLeft:-5 }} />
-          {/* <p>Made to melt hearts 🍫<br />Handcrafted cookies &amp; sweets made with love</p> */}
+          <img src={logoPink} alt="Melted" style={{ height: 56, width: 'auto', maxWidth: '100%', display: 'block', marginBottom: 12 }} />
+          <p>Made to melt hearts 🍫<br />Handcrafted desserts made fresh with premium ingredients and rich flavors</p>
           {/* <div className="footer-social">
             <a href="https://www.instagram.com/melted.egypt" target="_blank" rel="noreferrer" title="Instagram" aria-label="Instagram">
               <FontAwesomeIcon icon={faInstagram} style={{ fontSize: 20 }} />
@@ -64,6 +65,11 @@ export default function Footer() {
               <li>
                 <a href="https://wa.me/201104064435" target="_blank" rel="noreferrer" title="WhatsApp" aria-label="WhatsApp">
                   <FontAwesomeIcon icon={faWhatsapp} style={{ fontSize: 20 }} />
+                </a>
+              </li>
+              <li>
+                <a href="mailto:meltedegypt0@gmail.com" title="Email" aria-label="Email us">
+                  <FontAwesomeIcon icon={faEnvelope} style={{ fontSize: 20 }} />
                 </a>
               </li>
             </ul>

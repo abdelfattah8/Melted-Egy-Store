@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faChartBar, faBox, faBagShopping, faGift, faGear, faGlobe, faRightFromBracket, faTag } from '@fortawesome/free-solid-svg-icons'
+import { faChartBar, faBox, faBagShopping, faGift, faGear, faGlobe, faRightFromBracket, faTag, faIceCream, faJarWheat } from '@fortawesome/free-solid-svg-icons'
 import logoPink from '../../assets/brand/melted-logo-pink.png'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { InlineLoader } from '../../components/Loader.jsx'
@@ -20,6 +20,8 @@ export default function AdminLayout() {
   const links = [
     { to: '/admin',          label: 'Dashboard', icon: faChartBar,        end: true },
     { to: '/admin/products', label: 'Products',  icon: faBox },
+    { to: '/admin/flavors',  label: 'Flavors',   icon: faIceCream },
+    { to: '/admin/extras',   label: 'Extras',    icon: faJarWheat },
     { to: '/admin/orders',   label: 'Orders',    icon: faBagShopping },
     { to: '/admin/offers',       label: 'Offers',       icon: faGift },
     { to: '/admin/promo-codes',  label: 'Promo Codes',  icon: faTag },

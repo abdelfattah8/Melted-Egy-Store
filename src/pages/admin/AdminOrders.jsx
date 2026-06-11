@@ -210,9 +210,25 @@ export default function AdminOrders() {
 
             <p style={{ fontSize: 11, color: 'var(--text-light)', fontWeight: 600, letterSpacing: 1, marginBottom: 8 }}>ORDER ITEMS</p>
             {viewing.items?.map((item, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
-                <span>{item.name} × {item.quantity}</span>
-                <strong>{item.price * item.quantity} EGP</strong>
+              <div key={i} style={{ padding: '9px 0', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{item.name} × {item.quantity}</span>
+                  <strong>{item.price * item.quantity} EGP</strong>
+                </div>
+                {item.type === 'box' && item.boxChoices?.length > 0 && (
+                  <div style={{ fontSize: 12, color: 'var(--text-light)', marginTop: 4 }}>
+                    Box flavors: {item.boxChoices.map(c => c.quantity > 1 ? `${c.name} ×${c.quantity}` : c.name).join(' · ')}
+                  </div>
+                )}
+                {item.extras?.length > 0 && (
+                  <div style={{ marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                    {item.extras.map((e, j) => (
+                      <span key={j} style={{ fontSize: 11, fontWeight: 700, color: 'var(--brown)', background: 'var(--pink-light)', borderRadius: 50, padding: '2px 10px' }}>
+                        + {e.name} (+{e.price} EGP)
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, color: 'var(--text-light)', marginTop: 4 }}>

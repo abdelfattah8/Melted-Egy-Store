@@ -81,5 +81,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
       allow update: if isAdmin() || promoMarkUsedOnly();
     }
+
+    // FLAVORS — anyone can read (shown on product cards), only admin writes
+    match /flavors/{flavorId} {
+      allow read:  if true;
+      allow write: if isAdmin();
+    }
+
+    // EXTRAS — anyone can read (picked at add-to-cart, re-priced at checkout),
+    // only admin writes
+    match /extras/{extraId} {
+      allow read:  if true;
+      allow write: if isAdmin();
+    }
   }
 }

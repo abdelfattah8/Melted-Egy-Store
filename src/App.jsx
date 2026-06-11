@@ -29,6 +29,8 @@ const AdminOrders    = lazy(() => import('./pages/admin/AdminOrders.jsx'))
 const AdminOffers    = lazy(() => import('./pages/admin/AdminOffers.jsx'))
 const AdminSettings    = lazy(() => import('./pages/admin/AdminSettings.jsx'))
 const AdminPromoCodes  = lazy(() => import('./pages/admin/AdminPromoCodes.jsx'))
+const AdminFlavors     = lazy(() => import('./pages/admin/AdminFlavors.jsx'))
+const AdminExtras      = lazy(() => import('./pages/admin/AdminExtras.jsx'))
 
 // Navbar and Footer are NOT inside Suspense — they render immediately and
 // never unmount during page transitions, so admin link and cart state are stable.
@@ -89,6 +91,8 @@ export default function App() {
                   <Route path="offers"   element={<AdminOffers />} />
                   <Route path="settings"     element={<AdminSettings />} />
                   <Route path="promo-codes" element={<AdminPromoCodes />} />
+                  <Route path="flavors"  element={<AdminFlavors />} />
+                  <Route path="extras"   element={<AdminExtras />} />
                 </Route>
 
                 <Route path="*" element={<WithLayout><NotFound /></WithLayout>} />
