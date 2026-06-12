@@ -2,35 +2,52 @@ import { useEffect, useState, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCookieBite, faLayerGroup, faCakeCandles, faMugHot, faWandMagicSparkles, faMagnifyingGlass, faBoxOpen, faUtensils } from '@fortawesome/free-solid-svg-icons'
+import { faCookieBite, faLayerGroup, faCakeCandles, faMugHot, faWandMagicSparkles, faMagnifyingGlass, faBoxOpen } from '@fortawesome/free-solid-svg-icons'
 import { db } from '../firebase/config.jsx'
 import ProductCard from '../components/ProductCard.jsx'
 import SearchBar from '../components/SearchBar.jsx'
 import { InlineLoader } from '../components/Loader.jsx'
 import SEO from '../components/SEO.jsx'
 
-// Bare category keys — used to normalise old ?cat=cookies links from Home
-const BARE_CATS = ['cookies', 'brownies', 'cheesecake', 'tiramisu']
+// Bare category keys — each is a top-level tab (also matches ?cat= links from Home)
+const CATS = ['cookies', 'brownies', 'cheesecake', 'tiramisu']
 
-const MAIN_TABS = [
-  { key: 'all',      label: 'All',      icon: null },
-  { key: 'new',      label: 'New',      icon: faWandMagicSparkles },
-  { key: 'products', label: 'Products', icon: faUtensils },
-  { key: 'bites',    label: 'Bites',    icon: faCookieBite },
-  { key: 'boxes',    label: 'Boxes',    icon: faBoxOpen },
-]
-
-const SUB_CATS = [
+// ONE flat tab row — no sub-filters
+const TABS = [
+  { key: 'all',        label: 'All',        icon: null },
+  { key: 'new',        label: 'New',        icon: faWandMagicSparkles },
   { key: 'cookies',    label: 'Cookies',    icon: faCookieBite },
   { key: 'brownies',   label: 'Brownies',   icon: faLayerGroup },
   { key: 'cheesecake', label: 'Cheesecake', icon: faCakeCandles },
   { key: 'tiramisu',   label: 'Tiramisu',   icon: faMugHot },
+  { key: 'bites',      label: 'Bites',      icon: faCookieBite },
+  { key: 'boxes',      label: 'Boxes',      icon: faBoxOpen },
 ]
 
-// Bites (type:'bite') only come in these two categories
-const BITE_SUB_CATS = SUB_CATS.filter(s => s.key === 'cookies' || s.key === 'brownies')
+// Legacy URL support: ?cat=products → all, products-cookies → cookies,
+// bites-cookies → bites, boxes-cheesecake → boxes. Unknown values → all.
+function normalizeCat(raw) {
+  if (!raw || raw === 'products') return 'all'
+  if (raw.startsWith('products-')) raw = raw.slice('products-'.length)
+  if (raw.startsWith('bites')) return 'bites'
+  if (raw.startsWith('boxes')) return 'boxes'
+  return TABS.some(t => t.key === raw) ? raw : 'all'
+}
 
-const MAIN_LABEL = { products: 'Products', bites: 'Bites', boxes: 'Boxes' }
+// Sale price wins when it's a real discount — same logic as ProductCard
+const effectivePrice = p =>
+  p.onSale && p.salePrice && p.salePrice < p.price ? p.salePrice : p.price
+
+const SEO_TITLES = {
+  all:        'Shop — Cookies, Brownies & Desserts',
+  new:        'New Items — Melted Egypt',
+  cookies:    'Cookies — Melted Egypt',
+  brownies:   'Brownies — Melted Egypt',
+  cheesecake: 'Cheesecake — Melted Egypt',
+  tiramisu:   'Tiramisu — Melted Egypt',
+  bites:      'Bites — Cookie & Brownie Bites',
+  boxes:      'Boxes — Gift Boxes',
+}
 
 export default function Shop() {
   const [products,    setProducts]    = useState([])
@@ -38,30 +55,19 @@ export default function Shop() {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // Normalise: bare ?cat=cookies (from Home links) → products-cookies
-  const raw            = searchParams.get('cat') || 'all'
-  const activeCategory = BARE_CATS.includes(raw) ? `products-${raw}` : raw
-
-  const mainTab    = activeCategory.startsWith('products') ? 'products'
-                   : activeCategory.startsWith('bites')    ? 'bites'
-                   : activeCategory.startsWith('boxes')    ? 'boxes'
-                   : activeCategory                          // 'all' | 'new'
-  const subCat     = activeCategory.includes('-') ? activeCategory.split('-')[1] : null
-  const showSubRow = mainTab === 'products' || mainTab === 'bites' || mainTab === 'boxes'
+  const activeCategory = normalizeCat(searchParams.get('cat'))
 
   useEffect(() => {
     async function load() {
       setLoading(true)
       try {
         // All Firestore queries use only the same index paths already in use.
-        // Type discrimination (products vs bites vs boxes) is applied client-side.
+        // Type discrimination (bites vs boxes) is applied client-side.
         let q
-        if (activeCategory === 'all') {
-          q = query(collection(db, 'products'), where('available', '==', true))
-        } else if (activeCategory === 'new') {
+        if (activeCategory === 'new') {
           q = query(collection(db, 'products'), where('available', '==', true), where('isNew', '==', true))
-        } else if (subCat) {
-          q = query(collection(db, 'products'), where('category', '==', subCat), where('available', '==', true))
+        } else if (CATS.includes(activeCategory)) {
+          q = query(collection(db, 'products'), where('category', '==', activeCategory), where('available', '==', true))
         } else {
           q = query(collection(db, 'products'), where('available', '==', true))
         }
@@ -69,18 +75,21 @@ export default function Shop() {
         const snap = await getDocs(q)
         let results = snap.docs.map(d => ({ id: d.id, ...d.data() }))
 
-        // Products tab includes boxes (under their matching sub-category) — only
-        // bites are excluded. Boxes also keep their own dedicated tab.
-        if (mainTab === 'products') results = results.filter(p => p.type !== 'bite')
-        if (mainTab === 'bites')    results = results.filter(p => p.type === 'bite')
-        if (mainTab === 'boxes')    results = results.filter(p => p.type === 'box')
+        // Category tabs show plain products AND boxes of that category — only
+        // bites are excluded (they live in their own tab).
+        if (CATS.includes(activeCategory)) results = results.filter(p => p.type !== 'bite')
+        if (activeCategory === 'bites')    results = results.filter(p => p.type === 'bite')
+        if (activeCategory === 'boxes')    results = results.filter(p => p.type === 'box')
+
+        // Client-side sort by effective price, lowest first (project avoids Firestore orderBy)
+        results.sort((a, b) => effectivePrice(a) - effectivePrice(b))
 
         setProducts(results)
       } catch (err) { console.error(err) }
       setLoading(false)
     }
     load()
-  }, [activeCategory]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeCategory])
 
   const filtered = useMemo(() => {
     if (!searchQuery.trim()) return products
@@ -97,20 +106,10 @@ export default function Shop() {
     setSearchParams(key === 'all' ? {} : { cat: key })
   }
 
-  const seoTitle = (() => {
-    if (activeCategory === 'all')      return 'Shop — Cookies, Brownies & Desserts'
-    if (activeCategory === 'new')      return 'New Items — Melted Egypt'
-    if (activeCategory === 'products') return 'Products — Individual Treats'
-    if (activeCategory === 'bites')    return 'Bites — Cookie & Brownie Bites'
-    if (activeCategory === 'boxes')    return 'Boxes — Gift Boxes'
-    const label = subCat ? subCat.charAt(0).toUpperCase() + subCat.slice(1) : ''
-    return mainTab === 'boxes' ? `${label} Boxes — Melted Egypt` : `${label} — Melted Egypt`
-  })()
-
   return (
     <div className="shop-page">
       <SEO
-        title={seoTitle}
+        title={SEO_TITLES[activeCategory] || SEO_TITLES.all}
         description="Order handcrafted cookies, fudgy brownies, cheesecake and tiramisu. Fresh baked to order and delivered across Cairo & Giza."
         path="/shop"
       />
@@ -124,12 +123,12 @@ export default function Shop() {
         <SearchBar onSearch={setSearchQuery} placeholder="Search cookies, brownies, cheesecake..." />
       </div>
 
-      {/* ── Main tabs: All | New | Products | Bites | Boxes ── */}
-      <div className="category-tabs" style={{ marginBottom: showSubRow ? 8 : 44 }}>
-        {MAIN_TABS.map(c => (
+      {/* ── Tabs: All | New | Cookies | Brownies | Cheesecake | Tiramisu | Bites | Boxes ── */}
+      <div className="category-tabs" style={{ marginBottom: 44 }}>
+        {TABS.map(c => (
           <button
             key={c.key}
-            className={`category-tab ${mainTab === c.key ? 'active' : ''}`}
+            className={`category-tab ${activeCategory === c.key ? 'active' : ''}`}
             onClick={() => setTab(c.key)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
           >
@@ -139,38 +138,6 @@ export default function Shop() {
         ))}
       </div>
 
-      {/* ── Sub-category row (Products, Bites or Boxes selected) ── */}
-      {showSubRow && (
-        <div
-          className="category-tabs"
-          style={{
-            marginBottom: 44,
-            marginLeft: 2,
-            paddingLeft: 14,
-            borderLeft: `3px solid ${mainTab === 'boxes' ? 'var(--brown-light)' : 'var(--pink-dark)'}`,
-          }}
-        >
-          <button
-            className={`category-tab ${!subCat ? 'active' : ''}`}
-            onClick={() => setTab(mainTab)}
-            style={{ fontSize: 13, padding: '8px 18px' }}
-          >
-            All {MAIN_LABEL[mainTab]}
-          </button>
-          {(mainTab === 'bites' ? BITE_SUB_CATS : SUB_CATS).map(s => (
-            <button
-              key={s.key}
-              className={`category-tab ${subCat === s.key ? 'active' : ''}`}
-              onClick={() => setTab(`${mainTab}-${s.key}`)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, padding: '8px 18px' }}
-            >
-              <FontAwesomeIcon icon={s.icon} style={{ fontSize: 12 }} />
-              {s.label}
-            </button>
-          ))}
-        </div>
-      )}
-
       {/* ── Results ── */}
       {loading ? (
         <InlineLoader text="Loading products..." />
@@ -179,7 +146,7 @@ export default function Shop() {
           <span className="empty-icon">
             {searchQuery
               ? <FontAwesomeIcon icon={faMagnifyingGlass} style={{ fontSize: 64, color: 'var(--brown-light)' }} />
-              : <FontAwesomeIcon icon={mainTab === 'boxes' ? faBoxOpen : faCookieBite} style={{ fontSize: 64, color: 'var(--brown-light)' }} />
+              : <FontAwesomeIcon icon={activeCategory === 'boxes' ? faBoxOpen : faCookieBite} style={{ fontSize: 64, color: 'var(--brown-light)' }} />
             }
           </span>
           <h3>{searchQuery ? `No results for "${searchQuery}"` : 'No products available right now'}</h3>

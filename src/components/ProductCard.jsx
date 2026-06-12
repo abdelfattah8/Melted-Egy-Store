@@ -122,6 +122,8 @@ export default function ProductCard({ product }) {
         )}
         {product.description && <p className="product-card-desc">{product.description}</p>}
 
+        {/* Bottom block — pinned to the card's bottom edge so buttons align across cards */}
+        <div className="product-card-bottom">
         {/* Price */}
         <div style={{ marginBottom: 16 }}>
           {onSale ? (
@@ -197,6 +199,7 @@ export default function ProductCard({ product }) {
             </button>
           </div>
         )}
+        </div>
       </div>
 
       {boxModal && <BoxBuilderModal box={product} onClose={() => setBoxModal(false)} />}

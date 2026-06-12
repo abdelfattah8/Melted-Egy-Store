@@ -14,7 +14,7 @@ test('home page loads with hero and sections', async ({ page }) => {
   await expect(page).toHaveURL(/\/shop/)
 })
 
-test('shop tabs: All / New / Products / Bites / Boxes with sub-filters', async ({ page }) => {
+test('shop tabs: flat row — All / New / Cookies / Brownies / Cheesecake / Tiramisu / Bites / Boxes', async ({ page }) => {
   const catalog = await loadCatalog()
   const plains  = plainProducts(catalog)
   const box     = countingBox(catalog)
@@ -25,6 +25,13 @@ test('shop tabs: All / New / Products / Bites / Boxes with sub-filters', async (
   const nonCookie = plains.find(p => p.category !== 'cookies')
 
   await page.goto('/shop')
+
+  await test.step('single flat tab row in the exact order', async () => {
+    await expect(page.locator('.category-tabs')).toHaveCount(1)
+    await expect(page.locator('.category-tabs .category-tab')).toHaveText(
+      ['All', 'New', 'Cookies', 'Brownies', 'Cheesecake', 'Tiramisu', 'Bites', 'Boxes']
+    )
+  })
 
   await test.step('All tab shows products', async () => {
     await expect(page.locator('.product-card').first()).toBeVisible({ timeout: 20_000 })
@@ -48,26 +55,12 @@ test('shop tabs: All / New / Products / Bites / Boxes with sub-filters', async (
     }
   })
 
-  await test.step('Products tab shows products AND boxes (no bites)', async () => {
-    await page.getByRole('button', { name: 'Products', exact: true }).click()
-    await expect(page.getByRole('button', { name: 'All Products' })).toBeVisible()
-    const nonNew = plains.find(p => !p.isNew) || anyPlain
-    await settleGrid(page, { present: nonNew.name })
-    if (box) {
-      // Boxes now appear in the Products tab too, keeping their box-builder flow
-      await expect(page.locator('.product-card').filter({ hasText: box.name })).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Build Your Box' }).first()).toBeVisible()
-    }
-    // No bite cards in the Products tab
-    await expect(page.locator('.product-card .product-card-category').filter({ hasText: 'Bite ·' })).toHaveCount(0)
-  })
-
-  await test.step('Products → Cookies sub-filter', async () => {
+  await test.step('Cookies tab shows cookie products (and cookie boxes), no bites', async () => {
     if (!cookie) {
       test.info().annotations.push({ type: 'skipped-step', description: 'No cookie products in the live catalog' })
       return
     }
-    await page.getByRole('button', { name: 'Cookies' }).click()
+    await page.getByRole('button', { name: 'Cookies', exact: true }).click()
     await settleGrid(page, { absent: nonCookie?.name, present: cookie.name })
     const cats = page.locator('.product-card .product-card-category')
     const count = await cats.count()
@@ -75,17 +68,24 @@ test('shop tabs: All / New / Products / Bites / Boxes with sub-filters', async (
     for (let i = 0; i < count; i++) {
       await expect(cats.nth(i)).toContainText('Cookies')
     }
+    // No bite cards inside a category tab
+    await expect(page.locator('.product-card .product-card-category').filter({ hasText: 'Bite ·' })).toHaveCount(0)
   })
 
-  await test.step('Bites tab shows only type:bite items (Cookies/Brownies sub-filters)', async () => {
+  await test.step('category tab includes boxes of that category', async () => {
+    if (!box) {
+      test.info().annotations.push({ type: 'skipped-step', description: 'No counting box in the live catalog' })
+      return
+    }
+    const tabLabel = box.category === 'cookies' ? 'Cookies' : 'Brownies'
+    await page.getByRole('button', { name: tabLabel, exact: true }).click()
+    await settleGrid(page, { present: box.name })
+    await expect(page.locator('.product-card').filter({ hasText: box.name })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Build Your Box' }).first()).toBeVisible()
+  })
+
+  await test.step('Bites tab shows only type:bite items', async () => {
     await page.getByRole('button', { name: 'Bites', exact: true }).click()
-    await expect(page.getByRole('button', { name: 'All Bites' })).toBeVisible()
-    // Bites only sub-filter by Cookies and Brownies
-    const subRow = page.locator('.category-tabs').nth(1)
-    await expect(subRow.getByRole('button', { name: 'Cookies' })).toBeVisible()
-    await expect(subRow.getByRole('button', { name: 'Brownies' })).toBeVisible()
-    await expect(subRow.getByRole('button', { name: 'Cheesecake' })).toHaveCount(0)
-    await expect(subRow.getByRole('button', { name: 'Tiramisu' })).toHaveCount(0)
     // The grid may legitimately be empty until the admin adds bites
     await settleGrid(page, { absent: cookie?.name || anyPlain.name, emptyOk: true })
     const nonBite = page.locator('.product-card').filter({ hasNotText: 'Bite ·' })
@@ -97,8 +97,7 @@ test('shop tabs: All / New / Products / Bites / Boxes with sub-filters', async (
       test.info().annotations.push({ type: 'skipped-step', description: 'No counting box in the live catalog' })
       return
     }
-    await page.getByRole('button', { name: 'Boxes' }).click()
-    await expect(page.getByRole('button', { name: 'All Boxes' })).toBeVisible()
+    await page.getByRole('button', { name: 'Boxes', exact: true }).click()
     await settleGrid(page, { absent: anyPlain.name, present: box.name })
     const cards = page.locator('.product-card')
     const count = await cards.count()
@@ -106,6 +105,26 @@ test('shop tabs: All / New / Products / Bites / Boxes with sub-filters', async (
     // All box cards offer the box-builder flow
     await expect(page.getByRole('button', { name: 'Build Your Box' })).toHaveCount(count)
   })
+})
+
+test('shop listings are sorted by effective price ascending', async ({ page }) => {
+  await page.goto('/shop')
+  await expect(page.locator('.product-card').first()).toBeVisible({ timeout: 20_000 })
+  for (const tab of ['All', 'Bites', 'Boxes']) {
+    await page.getByRole('button', { name: tab, exact: true }).click()
+    // Wait out the loading gap, allowing legitimately empty tabs
+    await expect(page.locator('.empty-state').or(page.locator('.product-card').first())).toBeVisible({ timeout: 20_000 })
+    const prices = await page.locator('.product-card').evaluateAll(cards =>
+      cards.map(c => {
+        // Effective price = sale price when on sale, else the base price element
+        const el = c.querySelector('.price-sale') || c.querySelector('.product-card-price')
+        return el ? parseFloat(el.textContent) : NaN
+      })
+    )
+    for (let i = 1; i < prices.length; i++) {
+      expect(prices[i], `${tab} tab: card ${i} price out of order (${prices.join(', ')})`).toBeGreaterThanOrEqual(prices[i - 1])
+    }
+  }
 })
 
 // The app has no per-product detail route (cards are the full product view),

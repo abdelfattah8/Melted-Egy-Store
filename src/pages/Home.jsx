@@ -9,7 +9,7 @@ import baker4 from '../assets/brand/tiramisu-home.jpg'
 import choco2 from '../assets/brand/download (2).png'
 // import choco2 from '../assets/brand/choco-banner-2.jpg'
 import catBrownies from '../assets/brand/brownies-home.jpeg'
-// import catBrownies from '../assets/brand/cat-brownies.jpg'
+import secBites from '../assets/brand/bites-sec.jpeg'
 // Text-free chocolate texture (derived from choco-banner-2.jpg) — the branding is NOT baked
 // in; it's overlaid once as .hero-slogan so it can never duplicate at any crop/aspect ratio.
 import chocoHeroBg from '../assets/brand/choco-hero-bg.jpg'
@@ -93,10 +93,11 @@ const deliveryItems = [
 ]
 
 const categories = [
-  { cat: 'cookies',    img: baker1,      imgAlt: 'Handcrafted Melted cookies',            name: 'Cookies',    desc: 'Classic & stuffed cookies with premium chocolate' },
-  { cat: 'brownies',   img: catBrownies, imgAlt: 'Melted signature fudgy brownies',        name: 'Brownies',   desc: 'Fudgy dark chocolate brownies, rich & decadent' },
-  { cat: 'cheesecake', img: baker3,      imgAlt: 'Melted creamy cheesecake',               name: 'Cheesecake', desc: 'Creamy cheesecake in multiple flavors' },
-  { cat: 'tiramisu',   img: baker4,      imgAlt: 'Melted classic tiramisu with espresso',  name: 'Tiramisu',   desc: 'Authentic Italian tiramisu with espresso' },
+  { cat: 'cookies',    img: baker1,      imgAlt: 'Handcrafted Melted cookies',            name: 'Cookies',    desc: 'Warm, soft and freshly baked cookies with rich fillings and irresistibly gooey centers' },
+  { cat: 'brownies',   img: catBrownies, imgAlt: 'Melted signature fudgy brownies',        name: 'Brownies',   desc: 'Rich fudgy brownies with a crackly top and intense chocolate flavor filled with creamy milk chocolate' },
+  { cat: 'cheesecake', img: baker3,      imgAlt: 'Melted creamy cheesecake',               name: 'New York Cheesecake', desc: 'Creamy, rich and perfectly baked New York cheesecake with a velvety cream cheese filling and a buttery biscuit base finished with your favorite toppings' },
+  { cat: 'tiramisu',   img: baker4,      imgAlt: 'Melted classic tiramisu with espresso',  name: 'Tiramisu',   desc: 'Authentic Italian tiramisu layered with coffe-soaked ladyfingers, silky mascarpone filling, and rich cocoa powder' },
+  { cat: 'bites',      img: secBites,    imgAlt: 'Melted handcrafted bite-sized treats',   name: 'Bites',      desc: 'Handcrafted bite-sized treats with rich flavors, premium ingredients, and irresistible texture in every bite' },
 ]
 
 const whyItems = [
@@ -365,7 +366,7 @@ export default function Home() {
         </Reveal>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 24, maxWidth: 1100, margin: '0 auto' }}>
           {categories.map(({ cat, img, imgAlt, name, desc }, i) => (
-            <Reveal key={cat} delay={i * 0.1}>
+            <Reveal key={cat} delay={i * 0.1} style={{ height: '100%' }}>
               <div
                 onClick={() => navigate(`/shop?cat=${cat}`)}
                 style={{
@@ -376,6 +377,11 @@ export default function Home() {
                   boxShadow: 'var(--shadow-sm)',
                   border: '1px solid var(--border)',
                   transition: 'var(--transition)',
+                  // Equal-height cards: every card stretches to the tallest in the
+                  // row; full descriptions stay visible (no clamping)
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
                 }}
                 onMouseEnter={e => {
                   e.currentTarget.style.transform = 'translateY(-7px)'
@@ -392,8 +398,8 @@ export default function Home() {
                   if (im) im.style.transform = ''
                 }}
               >
-                {/* Photo */}
-                <div style={{ overflow: 'hidden', height: 200 }}>
+                {/* Photo — same fixed height on every card */}
+                <div style={{ overflow: 'hidden', height: 200, flexShrink: 0 }}>
                   <img
                     src={img}
                     alt={imgAlt}
@@ -407,11 +413,11 @@ export default function Home() {
                     }}
                   />
                 </div>
-                {/* Text */}
-                <div style={{ padding: '20px 22px 24px' }}>
+                {/* Text — fills the remaining height; the Shop link pins to the bottom */}
+                <div style={{ padding: '20px 22px 24px', display: 'flex', flexDirection: 'column', flex: 1 }}>
                   <h3 style={{ fontFamily: "'Playfair Display',serif", color: 'var(--brown-dark)', marginBottom: 8, fontSize: 21 }}>{name}</h3>
                   <p style={{ fontSize: 13, color: 'var(--text-light)', lineHeight: 1.7, marginBottom: 14 }}>{desc}</p>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--brown)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--brown)', display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 'auto' }}>
                     Shop {name} <span style={{ transition: 'transform 0.3s ease' }}>→</span>
                   </span>
                 </div>
