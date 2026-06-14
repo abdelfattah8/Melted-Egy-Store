@@ -288,6 +288,74 @@ input.error, select.error, textarea.error { border-color: #e53935; box-shadow: 0
 .btn-icon { background: none; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 7px 11px; cursor: pointer; font-size: 15px; transition: var(--transition); margin-left: 6px; }
 .btn-icon:hover { background: var(--cream); border-color: var(--brown-light); transform: scale(1.08); }
 .btn-icon.delete:hover { background: #FFEBEE; border-color: #e53935; }
+
+/* Inline label shown only when an admin table collapses into stacked cards */
+.stack-only { display: none; }
+
+/* ── ADMIN TABLES → stacked cards on phones ── */
+@media (max-width: 768px) {
+  /* Safety net: any admin table not converted scrolls instead of clipping columns */
+  .admin-table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Tables tagged .admin-table--stack become one card per row */
+  .admin-table--stack { border: none; }
+  .admin-table--stack thead { display: none; }            /* labels come from data-label */
+  .admin-table--stack tbody,
+  .admin-table--stack tr,
+  .admin-table--stack td { display: block; width: 100%; }
+
+  .admin-table--stack tr {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--white);
+    box-shadow: var(--shadow-sm);
+    padding: 12px 16px;
+    margin-bottom: 14px;
+  }
+  .admin-table--stack tr:last-child { margin-bottom: 0; }
+  .admin-table--stack tr:hover td { background: transparent; }
+
+  .admin-table--stack td {
+    border-bottom: none !important;
+    padding: 6px 0 !important;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: right;
+    min-height: 34px;
+  }
+  .admin-table--stack td::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--brown);
+    text-align: left;
+    flex-shrink: 0;
+  }
+  /* Full-width cells (image / action buttons): no label, left-aligned, can wrap */
+  .admin-table--stack td.stack-full {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+    border-top: 1px solid var(--border) !important;
+    margin-top: 6px;
+    padding-top: 12px !important;
+  }
+  .admin-table--stack td.stack-full::before { content: none; }
+  .admin-table--stack td.stack-full .btn-icon { margin-left: 0; padding: 9px 13px; }
+  /* Empty-state colSpan row stays a plain centered block */
+  .admin-table--stack td[colspan] {
+    display: block !important;
+    text-align: center;
+    padding: 32px 0 !important;
+  }
+  .admin-table--stack td[colspan]::before { content: none; }
+  .admin-table--stack .stack-only { display: inline; }
+}
+
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; display: flex; align-items: center; justify-content: center; padding: 20px; animation: fadeIn 0.2s ease; }
 .modal { background: var(--white); border-radius: var(--radius); padding: 44px; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; position: relative; animation: fadeInUp 0.3s ease both; }
 .modal h3 { color: var(--brown-dark); font-size: 24px; margin-bottom: 28px; }
@@ -805,10 +873,30 @@ input.error, select.error, textarea.error { border-color: #e53935; box-shadow: 0
     max-width: 100%; max-height: 100%;
     height: 100dvh; border-radius: 0;
   }
-  .bbm-grid { grid-template-columns: 1fr; }
+  .bbm-grid { grid-template-columns: 1fr; gap: 8px; }
   .bbm-header { padding: 20px 20px 16px; }
-  .bbm-body { padding: 16px 20px; }
+  .bbm-body { padding: 16px 14px; }
   .bbm-footer { padding: 14px 20px; }
+
+  /* Compact flavor rows: smaller thumb/padding/fonts so more fit per screen,
+     and the stepper always stays on-screen */
+  .bbm-card { gap: 10px; padding: 9px 11px; }
+  .bbm-card-img-wrap { width: 44px; height: 44px; border-radius: 8px; }
+  .bbm-card-img-fallback { font-size: 17px; }
+  .bbm-card-name { font-size: clamp(12.5px, 3.6vw, 14px); }
+  .bbm-card-desc {
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 11.5px;
+    line-height: 1.35;
+    margin-top: 2px;
+  }
+  .bbm-stepper { gap: 5px; }
+  .bbm-step-btn { width: 28px; height: 28px; }
+  .bbm-step-qty { min-width: 18px; font-size: 13px; }
 }
 
 /* ── WISHLIST BUTTON ── */

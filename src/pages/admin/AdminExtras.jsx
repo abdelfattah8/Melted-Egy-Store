@@ -107,7 +107,7 @@ export default function AdminExtras() {
         </div>
       ) : (
         <div className="admin-table-wrapper">
-          <table className="admin-table">
+          <table className="admin-table admin-table--stack">
             <thead>
               <tr>
                 <th>Extra</th>
@@ -119,14 +119,14 @@ export default function AdminExtras() {
             <tbody>
               {extras.map(x => (
                 <tr key={x.id}>
-                  <td style={{ fontWeight: 600, color: 'var(--brown-dark)' }}>
+                  <td data-label="Extra" style={{ fontWeight: 600, color: 'var(--brown-dark)' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                       <FontAwesomeIcon icon={faJarWheat} style={{ fontSize: 14, color: 'var(--brown-light)' }} />
                       {x.name}
                     </span>
                   </td>
-                  <td><span style={{ fontWeight: 700, color: 'var(--brown)' }}>+{x.price} EGP</span></td>
-                  <td>
+                  <td data-label="Price"><span style={{ fontWeight: 700, color: 'var(--brown)' }}>+{x.price} EGP</span></td>
+                  <td data-label="Status">
                     <button
                       onClick={() => toggleActive(x)}
                       title={x.active !== false ? 'Click to deactivate' : 'Click to activate'}
@@ -136,7 +136,7 @@ export default function AdminExtras() {
                       {x.active !== false ? 'Active' : 'Inactive'}
                     </button>
                   </td>
-                  <td>
+                  <td className="stack-full">
                     <button className="btn-icon" onClick={() => openEdit(x)} title="Edit"><FontAwesomeIcon icon={faPencil} style={{ fontSize: 15 }} /></button>
                     <button className="btn-icon delete" onClick={() => setConfirmDelete(x)} title="Delete"><FontAwesomeIcon icon={faTrash} style={{ fontSize: 15 }} /></button>
                   </td>

@@ -104,7 +104,7 @@ export default function AdminFlavors() {
         </div>
       ) : (
         <div className="admin-table-wrapper">
-          <table className="admin-table">
+          <table className="admin-table admin-table--stack">
             <thead>
               <tr>
                 <th>Flavor</th>
@@ -115,13 +115,13 @@ export default function AdminFlavors() {
             <tbody>
               {flavors.map(f => (
                 <tr key={f.id}>
-                  <td style={{ fontWeight: 600, color: 'var(--brown-dark)' }}>
+                  <td data-label="Flavor" style={{ fontWeight: 600, color: 'var(--brown-dark)' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                       <FontAwesomeIcon icon={faIceCream} style={{ fontSize: 14, color: 'var(--brown-light)' }} />
                       {f.name}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="Status">
                     <button
                       onClick={() => toggleActive(f)}
                       title={f.active !== false ? 'Click to deactivate' : 'Click to activate'}
@@ -131,7 +131,7 @@ export default function AdminFlavors() {
                       {f.active !== false ? 'Active' : 'Inactive'}
                     </button>
                   </td>
-                  <td>
+                  <td className="stack-full">
                     <button className="btn-icon" onClick={() => openEdit(f)} title="Edit"><FontAwesomeIcon icon={faPencil} style={{ fontSize: 15 }} /></button>
                     <button className="btn-icon delete" onClick={() => setConfirmDelete(f)} title="Delete"><FontAwesomeIcon icon={faTrash} style={{ fontSize: 15 }} /></button>
                   </td>

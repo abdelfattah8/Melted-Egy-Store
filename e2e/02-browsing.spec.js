@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { settleGrid } from './helpers.js'
-import { loadCatalog, plainProducts, countingBox, newItem } from './fixtures.js'
+import { loadCatalog, plainProducts, countingBox, newItem, effectivePrice } from './fixtures.js'
 
 /** BROWSING: home page, Shop main tabs + sub-filters — driven by the LIVE catalog. */
 
@@ -107,23 +107,31 @@ test('shop tabs: flat row — All / New / Cookies / Brownies / Cheesecake / Tira
   })
 })
 
-test('shop listings are sorted by effective price ascending', async ({ page }) => {
+/**
+ * Mirrors src/utils/displayOrder.js: admin-set sortOrder ranks first (group 0);
+ * docs without one fall back to the end (group 1) ordered by effective price.
+ */
+function displayRank(p) {
+  return typeof p.sortOrder === 'number' ? [0, p.sortOrder] : [1, effectivePrice(p)]
+}
+
+test('shop listings follow the admin display order (sortOrder, price fallback)', async ({ page }) => {
+  const catalog = await loadCatalog()
+  // Cards are matched back to catalog docs by name — duplicates can't be mapped
+  // reliably, so they're skipped rather than asserted on.
+  const byName = new Map()
+  for (const p of catalog.products) byName.set(p.name, byName.has(p.name) ? null : p)
+
   await page.goto('/shop')
   await expect(page.locator('.product-card').first()).toBeVisible({ timeout: 20_000 })
-  for (const tab of ['All', 'Bites', 'Boxes']) {
-    await page.getByRole('button', { name: tab, exact: true }).click()
-    // Wait out the loading gap, allowing legitimately empty tabs
-    await expect(page.locator('.empty-state').or(page.locator('.product-card').first())).toBeVisible({ timeout: 20_000 })
-    const prices = await page.locator('.product-card').evaluateAll(cards =>
-      cards.map(c => {
-        // Effective price = sale price when on sale, else the base price element
-        const el = c.querySelector('.price-sale') || c.querySelector('.product-card-price')
-        return el ? parseFloat(el.textContent) : NaN
-      })
-    )
-    for (let i = 1; i < prices.length; i++) {
-      expect(prices[i], `${tab} tab: card ${i} price out of order (${prices.join(', ')})`).toBeGreaterThanOrEqual(prices[i - 1])
-    }
+  const names = await page.locator('.product-card .product-card-name').allTextContents()
+  const ranks = names.map(n => byName.get(n)).filter(Boolean).map(displayRank)
+  expect(ranks.length).toBeGreaterThan(0)
+  for (let i = 1; i < ranks.length; i++) {
+    const [prevGroup, prevVal] = ranks[i - 1]
+    const [curGroup,  curVal]  = ranks[i]
+    const ordered = prevGroup < curGroup || (prevGroup === curGroup && prevVal <= curVal)
+    expect(ordered, `card ${i} out of display order: ${JSON.stringify(ranks)}`).toBe(true)
   }
 })
 

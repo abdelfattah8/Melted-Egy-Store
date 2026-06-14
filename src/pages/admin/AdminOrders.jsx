@@ -136,7 +136,7 @@ export default function AdminOrders() {
 
       {loading ? <InlineLoader text="Loading orders..." /> : (
         <div className="admin-table-wrapper">
-          <table className="admin-table">
+          <table className="admin-table admin-table--stack">
             <thead>
               <tr>
                 <th>Order ID</th><th>Customer</th><th>Phone</th><th>City</th>
@@ -149,20 +149,20 @@ export default function AdminOrders() {
               )}
               {filtered.map(o => (
                 <tr key={o.id} style={{ background: (o.status === 'pending_payment' || o.status === 'pending_approval') ? '#FFFDE7' : '' }}>
-                  <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>#{o.id.slice(0, 8).toUpperCase()}</td>
-                  <td>{o.userInfo?.name || 'Guest'}</td>
-                  <td>{o.userInfo?.phone || '—'}</td>
-                  <td style={{ textTransform: 'capitalize' }}>{o.userInfo?.city || '—'}</td>
-                  <td >
+                  <td data-label="Order ID" style={{ fontFamily: 'monospace', fontWeight: 600 }}>#{o.id.slice(0, 8).toUpperCase()}</td>
+                  <td data-label="Customer">{o.userInfo?.name || 'Guest'}</td>
+                  <td data-label="Phone">{o.userInfo?.phone || '—'}</td>
+                  <td data-label="City" style={{ textTransform: 'capitalize' }}>{o.userInfo?.city || '—'}</td>
+                  <td data-label="Payment">
                     {/* style={{ display: 'flex', alignItems: 'center', gap: 4 }} */}
                     {PAYMENT_LABELS[o.paymentMethod] || 'Cash'}
                     <PaymentIcon method={o.paymentMethod} />
                   </td>
-                  <td style={{ fontWeight: 700, color: 'var(--brown)' }}>{o.total} EGP</td>
-                  <td><span className={`status-badge status-${o.status}`}>{STATUS_LABELS[o.status] || o.status}</span></td>
-                  <td>
-                    <button className="btn-icon" onClick={() => { setViewing(o); setConfirmingId(null) }} title="View">
-                      <FontAwesomeIcon icon={faEye} style={{ fontSize: 16 }} />
+                  <td data-label="Total" style={{ fontWeight: 700, color: 'var(--brown)' }}>{o.total} EGP</td>
+                  <td data-label="Status"><span className={`status-badge status-${o.status}`}>{STATUS_LABELS[o.status] || o.status}</span></td>
+                  <td className="stack-full">
+                    <button className="btn-icon" onClick={() => { setViewing(o); setConfirmingId(null) }} title="View" style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
+                      <FontAwesomeIcon icon={faEye} style={{ fontSize: 16 }} /> <span className="stack-only" style={{ fontSize: 13, fontWeight: 600 }}>View order</span>
                     </button>
                   </td>
                 </tr>

@@ -4,6 +4,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCookieBite, faLayerGroup, faCakeCandles, faMugHot, faWandMagicSparkles, faMagnifyingGlass, faBoxOpen } from '@fortawesome/free-solid-svg-icons'
 import { db } from '../firebase/config.jsx'
+import { byDisplayOrder } from '../utils/displayOrder.js'
 import ProductCard from '../components/ProductCard.jsx'
 import SearchBar from '../components/SearchBar.jsx'
 import { InlineLoader } from '../components/Loader.jsx'
@@ -33,10 +34,6 @@ function normalizeCat(raw) {
   if (raw.startsWith('boxes')) return 'boxes'
   return TABS.some(t => t.key === raw) ? raw : 'all'
 }
-
-// Sale price wins when it's a real discount — same logic as ProductCard
-const effectivePrice = p =>
-  p.onSale && p.salePrice && p.salePrice < p.price ? p.salePrice : p.price
 
 const SEO_TITLES = {
   all:        'Shop — Cookies, Brownies & Desserts',
@@ -81,8 +78,9 @@ export default function Shop() {
         if (activeCategory === 'bites')    results = results.filter(p => p.type === 'bite')
         if (activeCategory === 'boxes')    results = results.filter(p => p.type === 'box')
 
-        // Client-side sort by effective price, lowest first (project avoids Firestore orderBy)
-        results.sort((a, b) => effectivePrice(a) - effectivePrice(b))
+        // Client-side sort by the admin-controlled display order (project avoids
+        // Firestore orderBy); un-ordered docs fall back to the end by price
+        results.sort(byDisplayOrder)
 
         setProducts(results)
       } catch (err) { console.error(err) }

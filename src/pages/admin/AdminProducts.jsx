@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore'
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, writeBatch } from 'firebase/firestore'
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faPencil, faTag, faTrash, faCamera, faCircleCheck, faCircleXmark, faWandMagicSparkles, faTriangleExclamation, faXmark, faCookieBite, faLayerGroup, faCakeCandles, faMugHot, faUtensils, faBoxOpen, faIceCream, faJarWheat } from '@fortawesome/free-solid-svg-icons'
+import { faPencil, faTag, faTrash, faCamera, faCircleCheck, faCircleXmark, faWandMagicSparkles, faTriangleExclamation, faXmark, faCookieBite, faLayerGroup, faCakeCandles, faMugHot, faUtensils, faBoxOpen, faIceCream, faJarWheat, faArrowUp, faArrowDown } from '@fortawesome/free-solid-svg-icons'
 import { db, storage } from '../../firebase/config.jsx'
+import { byDisplayOrder } from '../../utils/displayOrder.js'
 import { InlineLoader } from '../../components/Loader.jsx'
 import ConfirmDialog from '../../components/ConfirmDialog.jsx'
 import toast from 'react-hot-toast'
@@ -11,6 +12,9 @@ import toast from 'react-hot-toast'
 const EMPTY      = { name: '', description: '', price: '', category: 'cookies', available: true, imageUrl: '', onSale: false, salePrice: '', isNew: false, stock: '', flavorIds: [], extraIds: [] }
 const BOX_EMPTY  = { name: '', description: '', price: '', boxCategory: 'cookies', boxSize: '', stock: '', available: true, imageUrl: '', onSale: false, salePrice: '', isNew: false }
 const BITE_EMPTY = { name: '', description: '', price: '', biteCategory: 'cookies', pieceCount: '', contents: [], stock: '', available: true, imageUrl: '', onSale: false, salePrice: '', isNew: false, extraIds: [] }
+
+// Unique storage path for a product image upload
+const imagePath = file => `products/${Date.now()}_${file.name.replace(/\s/g, '_')}`
 
 const CATEGORIES      = ['cookies', 'brownies', 'cheesecake', 'tiramisu']
 const BITE_CATEGORIES = ['cookies', 'brownies'] // bites only come in these two
@@ -85,7 +89,8 @@ export default function AdminProducts() {
     setLoading(true)
     try {
       const snap = await getDocs(collection(db, 'products'))
-      setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      // Same ordering the shop shows — the table IS the display order
+      setProducts(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort(byDisplayOrder))
     } catch (err) { console.error('Products load failed:', err); toast.error('Failed to load products') }
     setLoading(false)
   }
@@ -179,8 +184,7 @@ export default function AdminProducts() {
       let imageUrl = form.imageUrl
       if (imgFile) {
         toast.loading('Uploading image...', { id: 'upload' })
-        const path = `products/${Date.now()}_${imgFile.name.replace(/\s/g, '_')}`
-        imageUrl = await uploadImage(imgFile, path)
+        imageUrl = await uploadImage(imgFile, imagePath(imgFile))
         toast.dismiss('upload')
       }
 
@@ -237,7 +241,7 @@ export default function AdminProducts() {
         await updateDoc(doc(db, 'products', editing.id), data)
         toast.success(`${typeLabel} updated!`)
       } else {
-        await addDoc(collection(db, 'products'), { ...data, createdAt: new Date() })
+        await addDoc(collection(db, 'products'), { ...data, createdAt: new Date(), sortOrder: nextSortOrder() })
         toast.success(`${typeLabel} added!`)
       }
       setModal(false); load()
@@ -246,6 +250,42 @@ export default function AdminProducts() {
       else toast.error('Something went wrong: ' + err.message)
     }
     setSaving(false); setUploadProgress(0)
+  }
+
+  // New items land at the END of the display order
+  const nextSortOrder = () =>
+    products.reduce((m, p) => typeof p.sortOrder === 'number' && p.sortOrder >= m ? p.sortOrder + 1 : m, 0)
+
+  /**
+   * Move a row up (-1) or down (+1) and persist the new display order.
+   * The whole list is re-indexed 0..n-1 but only docs whose sortOrder actually
+   * changed are written — one batch normalises everything on the first move,
+   * after that a move costs just 2 writes.
+   */
+  async function move(p, dir) {
+    const idx  = products.findIndex(x => x.id === p.id)
+    const swap = idx + dir
+    if (idx === -1 || swap < 0 || swap >= products.length) return
+    const next = [...products]
+    ;[next[idx], next[swap]] = [next[swap], next[idx]]
+    const reindexed = next.map((x, i) => ({ ...x, sortOrder: i }))
+    const prevState = products
+    setProducts(reindexed) // optimistic — arrows stay responsive
+    try {
+      const batch = writeBatch(db)
+      let writes = 0
+      for (const x of reindexed) {
+        if (prevState.find(o => o.id === x.id)?.sortOrder !== x.sortOrder) {
+          batch.update(doc(db, 'products', x.id), { sortOrder: x.sortOrder })
+          writes++
+        }
+      }
+      if (writes) await batch.commit()
+    } catch (err) {
+      console.error('Reorder failed:', err)
+      toast.error('Failed to save the new order')
+      setProducts(prevState)
+    }
   }
 
   function handleDelete(p) { setConfirmDelete(p) }
@@ -323,21 +363,44 @@ export default function AdminProducts() {
 
       {loading ? <InlineLoader text="Loading products..." /> : (
         <div className="admin-table-wrapper">
-          <table className="admin-table">
+          <table className="admin-table admin-table--stack">
             <thead>
-              <tr><th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>Sale</th><th>Stock</th><th>Status</th><th>Actions</th></tr>
+              <tr><th>Order</th><th>Image</th><th>Name</th><th>Category</th><th>Price</th><th>Sale</th><th>Stock</th><th>Status</th><th>Actions</th></tr>
             </thead>
             <tbody>
               {products.length === 0 && (
-                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 48, color: 'var(--text-light)' }}>No products yet. Add your first one!</td></tr>
+                <tr><td colSpan={9} style={{ textAlign: 'center', padding: 48, color: 'var(--text-light)' }}>No products yet. Add your first one!</td></tr>
               )}
-              {products.map(p => {
+              {products.map((p, i) => {
                 const catIcon  = CAT_ICONS[p.category] || faUtensils
                 const isBox    = p.type === 'box'
                 const isBite   = p.type === 'bite'
                 return (
                   <tr key={p.id} style={{ background: p.onSale ? '#FFF8E7' : '' }}>
-                    <td>
+                    <td data-label="Order">
+                      {/* Display-order controls — the table order is the shop order */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center' }}>
+                        <button
+                          className="btn-icon"
+                          onClick={() => move(p, -1)}
+                          disabled={i === 0}
+                          title="Move up"
+                          style={{ padding: 4, opacity: i === 0 ? 0.25 : 1, cursor: i === 0 ? 'default' : 'pointer' }}
+                        >
+                          <FontAwesomeIcon icon={faArrowUp} style={{ fontSize: 13 }} />
+                        </button>
+                        <button
+                          className="btn-icon"
+                          onClick={() => move(p, 1)}
+                          disabled={i === products.length - 1}
+                          title="Move down"
+                          style={{ padding: 4, opacity: i === products.length - 1 ? 0.25 : 1, cursor: i === products.length - 1 ? 'default' : 'pointer' }}
+                        >
+                          <FontAwesomeIcon icon={faArrowDown} style={{ fontSize: 13 }} />
+                        </button>
+                      </div>
+                    </td>
+                    <td data-label="Image">
                       {p.imageUrl
                         ? <img src={p.imageUrl} alt={p.name} className="admin-product-img" loading="lazy" />
                         : <div className="admin-product-img-placeholder" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -345,7 +408,7 @@ export default function AdminProducts() {
                           </div>
                       }
                     </td>
-                    <td style={{ fontWeight: 600 }}>
+                    <td data-label="Name" style={{ fontWeight: 600 }}>
                       {isBox && (
                         <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--brown)', background: 'var(--pink-light)', borderRadius: 4, padding: '1px 7px', marginLeft: 6, verticalAlign: 'middle' }}>BOX</span>
                       )}
@@ -354,12 +417,12 @@ export default function AdminProducts() {
                       )}
                       {p.name}
                     </td>
-                    <td style={{ textTransform: 'capitalize' }}>
+                    <td data-label="Category" style={{ textTransform: 'capitalize' }}>
                       {p.category}
                       {isBox && p.boxSize && <span style={{ fontSize: 11, color: 'var(--text-light)', display: 'block' }}>{p.boxSize} pcs</span>}
                       {isBite && p.pieceCount && <span style={{ fontSize: 11, color: 'var(--text-light)', display: 'block' }}>{p.pieceCount} pcs</span>}
                     </td>
-                    <td>
+                    <td data-label="Price">
                       {p.onSale && p.salePrice ? (
                         <div>
                           <span style={{ textDecoration: 'line-through', color: 'var(--text-light)', fontSize: 13 }}>{p.price} EGP</span>
@@ -369,27 +432,27 @@ export default function AdminProducts() {
                         <span style={{ fontWeight: 700, color: 'var(--brown)' }}>{p.price} EGP</span>
                       )}
                     </td>
-                    <td>
+                    <td data-label="Sale">
                       {p.onSale && p.salePrice ? (
                         <span style={{ display: 'inline-block', background: '#e53935', color: 'white', fontSize: 11, fontWeight: 700, lineHeight: 1.4, padding: '3px 11px', borderRadius: 50, whiteSpace: 'nowrap', verticalAlign: 'middle' }}>-{discountPct(p)}% OFF</span>
                       ) : (
                         <span style={{ color: 'var(--text-light)', fontSize: 12 }}>—</span>
                       )}
                     </td>
-                    <td>
+                    <td data-label="Stock">
                       {p.stock == null
                         ? <span style={{ color: 'var(--text-light)', fontSize: 12 }}>—</span>
                         : <span style={{ fontWeight: 600, color: p.stock === 0 ? '#e53935' : 'var(--brown-dark)' }}>{p.stock}</span>
                       }
                     </td>
-                    <td>
+                    <td data-label="Status">
                       <button onClick={() => toggleAvailability(p)} style={{ background: p.available ? '#E8F5E9' : '#FFEBEE', color: p.available ? '#2E7D32' : '#C62828', border: 'none', borderRadius: 50, padding: '5px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Poppins,sans-serif', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                         {p.available
                           ? <><FontAwesomeIcon icon={faCircleCheck} style={{ fontSize: 12 }} /> Visible</>
                           : <><FontAwesomeIcon icon={faCircleXmark} style={{ fontSize: 12 }} /> Hidden</>}
                       </button>
                     </td>
-                    <td>
+                    <td className="stack-full">
                       <button className="btn-icon" onClick={() => openEdit(p)} title="Edit"><FontAwesomeIcon icon={faPencil} style={{ fontSize: 15 }} /></button>
                       <button className="btn-icon" onClick={() => toggleSale(p)} title={p.onSale ? 'Remove Sale' : 'Add Sale'} style={{ background: p.onSale ? '#FFF3E0' : '' }}>
                         <FontAwesomeIcon icon={faTag} style={{ fontSize: 15 }} />
